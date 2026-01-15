@@ -99,12 +99,13 @@ module "web_server" {
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
-  secret_name = "${var.environment}-app-secrets"
+  secret_name = "${var.environment}-app-secrets-v1"
   description = "Application secrets for ${var.environment} environment"
+  recovery_window_in_days = 7
 
   tags = {
     Environment = var.environment
-    Name        = "${var.environment}-app-secrets"
+    Name        = "${var.environment}-app-secrets-v1"
   }
 }
 
