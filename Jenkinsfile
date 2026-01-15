@@ -37,7 +37,7 @@ pipeline {
         // Dynamic paths based on parameters
         TF_WORKING_DIR = "env/${params.ENVIRONMENT}"
         AWS_REGION = "${params.AWS_REGION}"
-        AWS_CREDENTIALS = credentials('aws-credentials')
+        AWS_CREDENTIALS = credentials('aws-bootstrap-creds')
         SECRETS_MANAGER_CRED = credentials('secrets-manager-secret-id')
         
         // Terraform Configuration
