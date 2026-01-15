@@ -150,6 +150,7 @@ pipeline {
                         sh '''
                             terraform plan \
                                 -input=false \
+                                -var-file=terraform.tfvars \
                                 -out=tfplan_${BUILD_TIMESTAMP}
                             
                             # Save plan for later use
