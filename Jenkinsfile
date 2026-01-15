@@ -56,22 +56,6 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                script {
-                    echo "========== Checking out source code =========="
-                    checkout(
-                        [
-                            $class: 'GitSCM',
-                            branches: [[name: '${env.GIT_BRANCH}']],
-                            extensions: [[$class: 'CloneOption', depth: 1, noTags: false]],
-                            userRemoteConfigs: [[url: '${env.GIT_REPO_URL}']]
-                        ]
-                    )
-                }
-            }
-        }
-
         stage('Pre-Validation') {
             steps {
                 script {
