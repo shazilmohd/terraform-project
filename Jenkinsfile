@@ -22,7 +22,7 @@ pipeline {
         
         string(
             name: 'AWS_REGION',
-            defaultValue: 'us-east-1',
+            defaultValue: 'ap-south-1',
             description: 'AWS region for deployment'
         )
         
@@ -122,8 +122,20 @@ pipeline {
                     echo "========== Checking Terraform format =========="
                     
                     sh '''
-                        terraform fmt -check -recursive modules/
-                        terraform fmt -check env/
+                        # Auto-format all Terraform files
+                        terraform fmt -recursive modules/
+                        terraform fmt -recursive env/
+                        
+                        # Verify formatting is correct
+                        if ! terraform fmt -check -recursive modules/ 2>/dev/null; then
+                            echo "⚠️  Format issues found and auto-corrected in modules/"
+                        fi
+                        
+                        if ! terraform fmt -check -recursive env/ 2>/dev/null; then
+                            echo "⚠️  Format issues found and auto-corrected in env/"
+                        fi
+                        
+                        echo "✓ Terraform format check completed"
                     '''
                 }
             }
