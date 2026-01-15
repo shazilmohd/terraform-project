@@ -1,3 +1,9 @@
+variable "create_secret" {
+  description = "Whether to create the Secrets Manager secret"
+  type        = bool
+  default     = true
+}
+
 variable "secret_name" {
   description = "Name of the secret"
   type        = string

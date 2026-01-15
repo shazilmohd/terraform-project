@@ -99,6 +99,7 @@ module "web_server" {
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
+  create_secret = false
   secret_name = "${var.environment}-app-secrets-v1"
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
