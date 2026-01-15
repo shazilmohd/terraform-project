@@ -31,7 +31,7 @@ module "vpc" {
   vpc_cidr             = var.vpc_cidr
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
-  
+
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-vpc"
@@ -42,15 +42,15 @@ module "vpc" {
 module "web_security_group" {
   source = "../../modules/networking/security_group"
 
-  vpc_id                = module.vpc.vpc_id
-  security_group_name   = "${var.environment}-web-sg"
+  vpc_id              = module.vpc.vpc_id
+  security_group_name = "${var.environment}-web-sg"
 
   ingress_rules = [
     {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]  # Consider restricting in production
+      cidr_blocks = ["0.0.0.0/0"] # Consider restricting in production
       description = "SSH access"
     },
     {
@@ -111,7 +111,7 @@ module "app_secrets" {
 # Data source to get latest Ubuntu LTS AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"]  # Canonical
+  owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
