@@ -1,11 +1,11 @@
 output "secret_id" {
   description = "The ID of the secret"
-  value       = aws_secretsmanager_secret.main.id
+  value       = try(aws_secretsmanager_secret.main[0].id, null)
 }
 
 output "secret_arn" {
   description = "The ARN of the secret"
-  value       = aws_secretsmanager_secret.main.arn
+  value       = try(aws_secretsmanager_secret.main[0].arn, null)
 }
 
 output "secret_version_id" {
