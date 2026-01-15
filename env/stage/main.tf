@@ -101,7 +101,7 @@ module "app_secrets" {
 
   secret_name = "${var.environment}-app-secrets-v1"
   description = "Application secrets for ${var.environment} environment"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = {
     Environment = var.environment
