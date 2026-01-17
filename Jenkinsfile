@@ -12,12 +12,7 @@
 
 pipeline {
     agent {
-        label {
-            label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'any'}"
-            when {
-                beforeAgent true
-            }
-        }
+        label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'any'}"
     }
 
     parameters {
