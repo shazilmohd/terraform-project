@@ -5,8 +5,9 @@ resource "aws_instance" "main" {
   subnet_id                   = var.subnet_ids[count.index % length(var.subnet_ids)]
   vpc_security_group_ids      = var.security_group_ids
   key_name                    = var.key_name != "" ? var.key_name : null
+  iam_instance_profile        = var.iam_instance_profile != "" ? var.iam_instance_profile : null
   associate_public_ip_address = var.associate_public_ip
-  user_data                   = var.user_data != "" ? base64encode(var.user_data) : null
+  user_data                   = var.user_data != "" ? var.user_data : null
 
   root_block_device {
     volume_type           = var.root_volume_type

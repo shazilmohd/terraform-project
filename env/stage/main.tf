@@ -22,6 +22,33 @@ data "aws_secretsmanager_secret_version" "env_secrets" {
 
 locals {
   secrets = jsondecode(data.aws_secretsmanager_secret_version.env_secrets.secret_string)
+  
+  # Consume secrets for EC2 configuration
+  # Expected structure in Secrets Manager:
+  # {
+  #   "app_name": "my-app",
+  #   "app_version": "1.0.0",
+  #   "contact_email": "ops@company.com"
+  # }
+  app_name        = lookup(local.secrets, "app_name", "${var.environment}-app")
+  app_version     = lookup(local.secrets, "app_version", "1.0.0")
+  contact_email   = lookup(local.secrets, "contact_email", "ops@company.com")
+}
+
+# Data source to get latest Ubuntu LTS AMI
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 
 # VPC Module
@@ -75,24 +102,43 @@ module "web_security_group" {
   }
 }
 
+# IAM Instance Role Module
+module "ec2_instance_role" {
+  source = "../../modules/iam/instance_role"
+
+  environment = var.environment
+  
+  tags = {
+    Environment = var.environment
+    Name        = "${var.environment}-ec2-role"
+  }
+}
+
 # EC2 Module
 module "web_server" {
   source = "../../modules/compute/ec2"
 
-  instance_type       = var.instance_type
-  ami_id              = data.aws_ami.ubuntu.id
-  subnet_ids          = module.vpc.public_subnet_ids
-  security_group_ids  = [module.web_security_group.security_group_id]
-  instance_count      = var.instance_count
-  associate_public_ip = true
-  key_name            = var.key_pair_name != "" ? var.key_pair_name : null
-  user_data           = file("${path.module}/../../scripts/install_apache2.sh")
-  root_volume_size    = var.root_volume_size
+  instance_type        = var.instance_type
+  ami_id               = data.aws_ami.ubuntu.id
+  subnet_ids           = module.vpc.public_subnet_ids
+  security_group_ids   = [module.web_security_group.security_group_id]
+  instance_count       = var.instance_count
+  associate_public_ip  = true
+  key_name             = var.key_pair_name != "" ? var.key_pair_name : null
+  iam_instance_profile = module.ec2_instance_role.instance_profile_name
+  user_data            = base64encode(templatefile("${path.module}/../../scripts/install_apache2.sh", { environment = var.environment }))
+  root_volume_size     = var.root_volume_size
 
   tags = {
-    Environment = var.environment
-    Name        = "${var.environment}-web-server"
+    Environment    = var.environment
+    Name           = "${var.environment}-web-server"
+    AppName        = local.app_name
+    AppVersion     = local.app_version
+    ManagedBy      = "Terraform"
+    ContactEmail   = local.contact_email
   }
+
+  depends_on = [module.ec2_instance_role]
 }
 
 # Secrets Manager Module
@@ -107,21 +153,5 @@ module "app_secrets" {
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-app-secrets-v1"
-  }
-}
-
-# Data source to get latest Ubuntu LTS AMI
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
   }
 }

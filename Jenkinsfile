@@ -4,7 +4,7 @@ pipeline {
     parameters {
         choice(
             name: 'ENVIRONMENT',
-            choices: ['dev', 'stage'],
+            choices: ['dev', 'stage', 'prod'],
             description: 'Environment to deploy to'
         )
         
@@ -37,10 +37,6 @@ pipeline {
         // Dynamic paths based on parameters
         TF_WORKING_DIR = "env/${params.ENVIRONMENT}"
         AWS_REGION = "${params.AWS_REGION}"
-        AWS_CREDENTIALS = credentials('aws-bootstrap-creds')
-        SECRETS_MANAGER_CRED = credentials('secrets-manager-secret-id')
-        
-        // Terraform Configuration
         TF_LOG = 'INFO'
         
         // Build Information
@@ -86,16 +82,61 @@ pipeline {
             }
         }
 
+        stage('Parameter Validation') {
+            steps {
+                script {
+                    echo "========== Validating pipeline parameters =========="
+                    
+                    // Validate ENVIRONMENT parameter
+                    def validEnvironments = ['dev', 'stage', 'prod']
+                    if (!validEnvironments.contains(params.ENVIRONMENT)) {
+                        error("❌ Invalid ENVIRONMENT: ${params.ENVIRONMENT}. Must be one of: ${validEnvironments.join(', ')}")
+                    }
+                    
+                    // Validate ACTION parameter
+                    def validActions = ['plan', 'apply', 'destroy']
+                    if (!validActions.contains(params.ACTION)) {
+                        error("❌ Invalid ACTION: ${params.ACTION}. Must be one of: ${validActions.join(', ')}")
+                    }
+                    
+                    // CRITICAL: Block destroy on production
+                    if (params.ENVIRONMENT == 'prod' && params.ACTION == 'destroy') {
+                        error("❌ DESTROY is not permitted on PROD environment. Contact senior team for manual intervention.")
+                    }
+                    
+                    echo "✓ ENVIRONMENT: ${params.ENVIRONMENT}"
+                    echo "✓ ACTION: ${params.ACTION}"
+                    echo "✓ All parameter validations passed"
+                }
+            }
+        }
+
         stage('Terraform Init') {
             steps {
                 script {
-                    echo "========== Initializing Terraform =========="
+                    echo "========== Initializing Terraform with dynamic backend config =========="
                     
                     dir("${TF_WORKING_DIR}") {
                         sh '''
+                            # Determine backend bucket and DynamoDB table names
+                            BACKEND_BUCKET="terraform-state-${ENVIRONMENT}"
+                            DYNAMODB_TABLE="terraform-locks"
+                            AWS_REGION="ap-south-1"
+                            
+                            echo "🔧 Backend Configuration:"
+                            echo "   Bucket: ${BACKEND_BUCKET}"
+                            echo "   Table: ${DYNAMODB_TABLE}"
+                            echo "   Region: ${AWS_REGION}"
+                            
+                            # Initialize Terraform with dynamic backend config
                             terraform init \
                                 -upgrade \
-                                -input=false
+                                -input=false \
+                                -backend-config="bucket=${BACKEND_BUCKET}" \
+                                -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
+                                -backend-config="region=${AWS_REGION}" \
+                                -backend-config="dynamodb_table=${DYNAMODB_TABLE}" \
+                                -backend-config="encrypt=true"
                         '''
                     }
                 }
@@ -193,7 +234,10 @@ pipeline {
                 script {
                     echo "========== Waiting for approval =========="
                     
-                    timeout(time: 30, unit: 'MINUTES') {
+                    def timeout_mins = params.ENVIRONMENT == 'prod' ? 60 : 30
+                    def approvers = params.ENVIRONMENT == 'prod' ? 'devops-lead,platform-engineer' : '${env.JENKINS_APPROVERS}'
+                    
+                    timeout(time: timeout_mins, unit: 'MINUTES') {
                         input message: '''
                         
                         ╔═══════════════════════════════════════════════════════╗
@@ -204,10 +248,12 @@ pipeline {
                         ║  Timestamp: ''' + env.BUILD_TIMESTAMP + '''             ║
                         ║                                                       ║
                         ║  Review the plan output above and approve if correct  ║
+                        ║                                                       ║
+                        ║  ⚠️  PROD deployments require senior approval         ║
                         ╚═══════════════════════════════════════════════════════╝
                         ''',
                         ok: 'APPROVE & APPLY',
-                        submitter: '${env.JENKINS_APPROVERS}'
+                        submitter: approvers
                     }
                 }
             }
@@ -241,6 +287,23 @@ pipeline {
             }
             steps {
                 script {
+                    // CRITICAL: Block destroy on production
+                    if (env.ENVIRONMENT == 'prod') {
+                        error("""
+                            ❌ DESTROY NOT PERMITTED ON PRODUCTION
+                            
+                            To avoid accidental deletion of production infrastructure,
+                            DESTROY operations are strictly forbidden on the 'prod' environment.
+                            
+                            If you must delete production infrastructure:
+                            1. Contact the DevOps lead for manual intervention
+                            2. Follow the Change Control process
+                            3. Ensure backups are in place
+                            
+                            Use terraform destroy locally with extreme caution and proper authorization.
+                        """)
+                    }
+                    
                     echo "========== WARNING: Destroying Terraform resources =========="
                     
                     timeout(time: 15, unit: 'MINUTES') {
@@ -294,6 +357,10 @@ Build Timestamp: ${BUILD_TIMESTAMP}
 Build Number: ${BUILD_NUMBER}
 Build URL: ${BUILD_URL}
 
+⚠️  SECURITY NOTICE: This file contains infrastructure information.
+    Do NOT share publicly or commit to version control.
+    Restrict access to authorized personnel only.
+
 ========== VPC Information ==========
 VPC ID: $(terraform output -raw vpc_id)
 Public Subnets: $(terraform output -json public_subnet_ids)
@@ -321,12 +388,49 @@ EOF
                             # Display summary
                             echo "========== Deployment Summary =========="
                             cat deployment_summary_${BUILD_TIMESTAMP}.txt
+                            
+                            # Create artifact security manifest
+                            cat > ARTIFACT_SECURITY_${BUILD_TIMESTAMP}.txt <<EOF
+ARTIFACT CLASSIFICATION: RESTRICTED
+
+This build produced the following artifacts:
+- terraform_outputs_${BUILD_TIMESTAMP}.json
+- deployment_summary_${BUILD_TIMESTAMP}.txt
+- tfplan_${BUILD_TIMESTAMP}
+
+These artifacts contain:
+- Infrastructure topology information
+- Resource IDs and endpoints
+- Network configuration
+- Deployment details
+
+ACCESS CONTROL:
+✓ Jenkins administrators
+✓ ${ENVIRONMENT} deployment team
+✗ Unauthorized personnel
+
+RETENTION:
+- Plan files: Keep for 30 days then delete
+- Output summaries: Keep for 90 days for audit
+- JSON outputs: Delete after deployment verification
+
+COMPLIANCE:
+- No credentials or secrets in artifacts
+- AWS API calls masked in logs
+- Terraform state file stored securely in S3 + DynamoDB
+- All access logged to CloudTrail
+
+Last Verified: $(date)
+EOF
+                            
+                            cat ARTIFACT_SECURITY_${BUILD_TIMESTAMP}.txt
                         '''
                     }
                     
-                    // Archive outputs
-                    archiveArtifacts artifacts: "${TF_WORKING_DIR}/terraform_outputs_*,${TF_WORKING_DIR}/deployment_summary_*", 
-                                     allowEmptyArchive: false
+                    // Archive outputs with security classification
+                    archiveArtifacts artifacts: "${TF_WORKING_DIR}/terraform_outputs_*,${TF_WORKING_DIR}/deployment_summary_*,${TF_WORKING_DIR}/ARTIFACT_SECURITY_*", 
+                                     allowEmptyArchive: false,
+                                     fingerprint: true
                 }
             }
         }

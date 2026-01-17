@@ -1,38 +1,164 @@
-# .gitignore for Terraform
+# .gitignore for Terraform + Jenkins CI/CD
 
-# Local .terraform directories
+# ==========================================
+# Terraform files
+# ==========================================
 .terraform/
 .terraform.lock.hcl
+.terraform.cache
 
-# Terraform state files
+# Terraform state files (CRITICAL - never commit)
 *.tfstate
 *.tfstate.*
+*.tfstate.backup
+.terraform.tfstate*
+tfplan*
+tfplan_*.txt
 
-# Crash log files
-crash.log
-
-# Exclude all secrets and sensitive variables
-*.tfvars
-*.tfvars.json
+# ==========================================
+# Environment-specific and sensitive variables
+# ==========================================
 terraform.tfvars
 terraform.tfvars.json
 env/*/terraform.tfvars
+!terraform.tfvars.example
+!**/terraform.tfvars.example
 
-# Ignore plan files
-*.tfplan
-
-# Ignore any other sensitive files
+# Secrets and sensitive data
 secrets.tf
 .env
 .env.local
+.env.*.local
 
-# IDE
+# ==========================================
+# IDE and Editor files
+# ==========================================
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
-.vscode/
+*.iml
+.project
+.classpath
+.c9/
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# ==========================================
+# OS-specific files
+# ==========================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
+
+# ==========================================
+# Build and runtime artifacts
+# ==========================================
+dist/
+build/
+output/
+artifacts/
+
+# ==========================================
+# Logs
+# ==========================================
+logs/
+*.log
+debug.log
+error.log
+
+# ==========================================
+# State backup directories
+# ==========================================
+state_backups/
+.state_backup/
+
+# ==========================================
+# Jenkins local files
+# ==========================================
+.jenkins/
+jenkins_build/
+jenkins_logs/
+
+# ==========================================
+# AWS credentials (NEVER commit)
+# ==========================================
+~/.aws/credentials
+~/.aws/config
+.aws/
+*.pem
+*.key
+*.pub
+*.p12
+*.pfx
+
+# ==========================================
+# Temporary files and directories
+# ==========================================
+*.tmp
+temp/
+tmp/
+.tmp/
+
+# ==========================================
+# Archives and compressed files
+# ==========================================
+*.zip
+*.tar.gz
+*.tar
+*.rar
+*.7z
+
+# ==========================================
+# Node/JavaScript (if used in scripts)
+# ==========================================
+node_modules/
+package-lock.json
+yarn.lock
+
+# ==========================================
+# Python (if used in scripts)
+# ==========================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+
+# ==========================================
+# Crash and debug files
+# ==========================================
+crash.log
+crash.*.log
+*.stackdump
+
+# ==========================================
+# macOS
+# ==========================================
+.AppleDouble
+.LSOverride
+.TemporaryItems
+
+# ==========================================
+# Terraform plan output files
+# ==========================================
+*.tfplan
+*.tfplan.txt
+tfplan/
+
+# ==========================================
+# Jenkins artifacts to exclude
+# ==========================================
+workspace/
+.gradle/
+.m2/
+

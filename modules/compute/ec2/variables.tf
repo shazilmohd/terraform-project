@@ -31,6 +31,12 @@ variable "key_name" {
   default     = ""
 }
 
+variable "iam_instance_profile" {
+  description = "IAM instance profile name to attach to EC2 instances"
+  type        = string
+  default     = ""
+}
+
 variable "associate_public_ip" {
   description = "Associate public IP address with instance"
   type        = bool

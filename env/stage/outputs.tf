@@ -44,3 +44,13 @@ output "app_secrets_arn" {
   description = "Application secrets ARN"
   value       = module.app_secrets.secret_arn
 }
+
+output "ec2_instance_role_arn" {
+  description = "EC2 instance role ARN"
+  value       = module.ec2_instance_role.instance_role_arn
+}
+
+output "environment_name" {
+  description = "Environment name"
+  value       = var.environment
+}
