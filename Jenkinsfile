@@ -1,17 +1,21 @@
 // ============================================
 // AGENT DISTRIBUTION STRATEGY
 // ============================================
-// Dev:                 Master/Any agent (primary)
-// Stage:               jenkins-agent2 (secondary - enables parallel with dev cleanup)
-// Prod:                Master/Any agent (primary)
-// Parallel-Destroy-All: Master/Any agent (primary)
+// Stage promotion works through automatic job triggering:
+//   - Dev PLAN/APPLY runs on any agent
+//   - When dev APPLY completes, it triggers a new job for Stage
+//   - New Stage job runs on jenkins-agent2 (via parameter-based selection)
+//   - This provides parallel execution without workspace conflicts
 //
-// This allows Stage deployment to run in parallel with Dev cleanup
-// reducing total deployment time for dev -> stage -> prod chain
+// Each triggered job gets fresh workspace on its assigned agent
 // ============================================
 
 pipeline {
-    agent any
+    agent {
+        node {
+            label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'master'}"
+        }
+    }
 
     parameters {
         choice(
@@ -295,11 +299,6 @@ pipeline {
         }
 
         stage('Terraform Apply') {
-            agent {
-                node {
-                    label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'master'}"
-                }
-            }
             when {
                 expression { params.ACTION.toLowerCase() == 'apply' && params.ENVIRONMENT != 'parallel-destroy-all' }
             }
