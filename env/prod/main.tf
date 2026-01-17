@@ -62,6 +62,9 @@ module "vpc" {
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-vpc"
+    Terraform   = "true"
+    Project     = "terraform-infrastructure"
+    CreatedDate = formatdate("YYYY-MM-DD", timestamp())
   }
 }
 
@@ -99,6 +102,9 @@ module "web_security_group" {
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-web-sg"
+    Terraform   = "true"
+    Project     = "terraform-infrastructure"
+    Component   = "security-group"
   }
 }
 
@@ -111,6 +117,9 @@ module "ec2_instance_role" {
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-ec2-role"
+    Terraform   = "true"
+    Project     = "terraform-infrastructure"
+    Component   = "iam-role"
   }
 }
 
@@ -136,6 +145,9 @@ module "web_server" {
     AppVersion     = local.app_version
     ManagedBy      = "Terraform"
     ContactEmail   = local.contact_email
+    Terraform      = "true"
+    Project        = "terraform-infrastructure"
+    Component      = "ec2-instance"
   }
 
   depends_on = [module.ec2_instance_role]
@@ -158,6 +170,9 @@ module "app_secrets" {
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-app-secrets-v1"
+    Terraform   = "true"
+    Project     = "terraform-infrastructure"
+    Component   = "secrets-manager"
   }
 
   depends_on = []
