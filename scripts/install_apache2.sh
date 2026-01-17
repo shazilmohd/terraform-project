@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-# Environment variable passed from Terraform
-ENVIRONMENT="${ENVIRONMENT:-unknown}"
+# Environment passed from Terraform
+ENVIRONMENT="${environment}"
 
 # Update system packages
-apt-get update
+apt-get update -y
 apt-get upgrade -y
 
 # Install Apache2
@@ -15,12 +15,12 @@ apt-get install -y apache2
 systemctl enable apache2
 systemctl start apache2
 
-# Create a simple health check page with environment info
+# Create Apache health check page
 cat > /var/www/html/index.html <<EOF
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Apache Server Running - $ENVIRONMENT Environment</title>
+    <title>Apache Server Running - ${environment} Environment</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 50px; background-color: #f5f5f5; }
         .container { 
@@ -53,22 +53,22 @@ cat > /var/www/html/index.html <<EOF
     <div class="container">
         <h1>Apache2 Web Server</h1>
         <p class="success">✓ Server is running successfully!</p>
-        
-        <div class="environment-badge $ENVIRONMENT">
-            Environment: $ENVIRONMENT
+
+        <div class="environment-badge ${environment}">
+            Environment: ${environment}
         </div>
-        
+
         <div class="info">
-            <strong>Hostname:</strong> $(hostname)<br>
-            <strong>IP Address:</strong> $(hostname -I)<br>
-            <strong>Instance ID:</strong> $(ec2-metadata --instance-id 2>/dev/null | cut -d' ' -f2 || echo "N/A")<br>
-            <strong>Availability Zone:</strong> $(ec2-metadata --availability-zone 2>/dev/null | cut -d' ' -f2 || echo "N/A")
+            <strong>Hostname:</strong> $$(hostname)<br>
+            <strong>IP Address:</strong> $$(hostname -I | awk '{print $1}')<br>
+            <strong>Instance ID:</strong> $$(ec2-metadata --instance-id 2>/dev/null | awk '{print $$2}' || echo "N/A")<br>
+            <strong>Availability Zone:</strong> $$(ec2-metadata --availability-zone 2>/dev/null | awk '{print $$2}' || echo "N/A")
         </div>
-        
-        <p class="timestamp">Deployed at: $(date)</p>
+
+        <p class="timestamp">Deployed at: $$(date)</p>
     </div>
 </body>
 </html>
 EOF
 
-echo "Apache2 installation and configuration completed successfully for $ENVIRONMENT environment"
+echo "Apache2 installation completed successfully for ${environment} environment"
