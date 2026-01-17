@@ -11,9 +11,7 @@
 // ============================================
 
 pipeline {
-    agent {
-        label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'any'}"
-    }
+    agent any
 
     parameters {
         choice(
@@ -297,6 +295,9 @@ pipeline {
         }
 
         stage('Terraform Apply') {
+            agent {
+                label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'any'}"
+            }
             when {
                 expression { params.ACTION.toLowerCase() == 'apply' && params.ENVIRONMENT != 'parallel-destroy-all' }
             }
