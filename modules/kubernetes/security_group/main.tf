@@ -22,7 +22,7 @@ resource "aws_vpc_security_group_ingress_rule" "cluster_from_nodes" {
   description       = "Allow nodes to communicate with the cluster API"
   from_port         = 443
   to_port           = 443
-  protocol          = "tcp"
+  ip_protocol       = "tcp"
   security_group_id = aws_security_group.eks_cluster_sg.id
   referenced_security_group_id = aws_security_group.eks_node_sg.id
 }
@@ -32,7 +32,7 @@ resource "aws_vpc_security_group_ingress_rule" "cluster_self" {
   description       = "Allow cluster to communicate with itself"
   from_port         = 443
   to_port           = 443
-  protocol          = "tcp"
+  ip_protocol       = "tcp"
   security_group_id = aws_security_group.eks_cluster_sg.id
   referenced_security_group_id = aws_security_group.eks_cluster_sg.id
 }
@@ -42,7 +42,7 @@ resource "aws_vpc_security_group_egress_rule" "cluster_all_outbound" {
   description       = "Allow all outbound traffic from cluster"
   from_port         = 0
   to_port           = 0
-  protocol          = "-1"
+  ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
   security_group_id = aws_security_group.eks_cluster_sg.id
 }
@@ -69,7 +69,7 @@ resource "aws_vpc_security_group_ingress_rule" "node_self" {
   description       = "Allow nodes to communicate with each other"
   from_port         = 1025
   to_port           = 65535
-  protocol          = "tcp"
+  ip_protocol       = "tcp"
   security_group_id = aws_security_group.eks_node_sg.id
   referenced_security_group_id = aws_security_group.eks_node_sg.id
 }
@@ -79,7 +79,7 @@ resource "aws_vpc_security_group_ingress_rule" "node_self_udp" {
   description       = "Allow pods to communicate with each other (UDP)"
   from_port         = 53
   to_port           = 53
-  protocol          = "udp"
+  ip_protocol       = "udp"
   security_group_id = aws_security_group.eks_node_sg.id
   referenced_security_group_id = aws_security_group.eks_node_sg.id
 }
@@ -89,7 +89,7 @@ resource "aws_vpc_security_group_ingress_rule" "node_from_cluster" {
   description       = "Allow cluster to communicate with nodes"
   from_port         = 1025
   to_port           = 65535
-  protocol          = "tcp"
+  ip_protocol       = "tcp"
   security_group_id = aws_security_group.eks_node_sg.id
   referenced_security_group_id = aws_security_group.eks_cluster_sg.id
 }
@@ -99,7 +99,7 @@ resource "aws_vpc_security_group_ingress_rule" "node_ssh" {
   description       = "Allow SSH access to nodes (restrict in production)"
   from_port         = 22
   to_port           = 22
-  protocol          = "tcp"
+  ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
   security_group_id = aws_security_group.eks_node_sg.id
 }
@@ -109,7 +109,7 @@ resource "aws_vpc_security_group_egress_rule" "node_all_outbound" {
   description       = "Allow all outbound traffic from nodes"
   from_port         = 0
   to_port           = 0
-  protocol          = "-1"
+  ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
   security_group_id = aws_security_group.eks_node_sg.id
 }
@@ -124,7 +124,7 @@ resource "aws_vpc_security_group_ingress_rule" "node_additional" {
   description       = each.value.description
   from_port         = each.value.from_port
   to_port           = each.value.to_port
-  protocol          = each.value.protocol
+  ip_protocol       = each.value.protocol
   cidr_ipv4         = length(each.value.cidr_blocks) > 0 ? each.value.cidr_blocks[0] : null
   security_group_id = aws_security_group.eks_node_sg.id
 }

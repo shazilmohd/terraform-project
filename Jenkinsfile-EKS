@@ -101,7 +101,8 @@ pipeline {
                         
                         # Check kubectl availability (for EKS verification)
                         if which kubectl >/dev/null 2>&1; then
-                            echo "✓ kubectl found: $(kubectl version --client --short)"
+                            KUBECTL_VERSION=$(kubectl version --client --output=json 2>/dev/null | grep -o '"gitVersion":"v[^"]*"' | cut -d'"' -f4 || echo "unknown")
+                            echo "✓ kubectl found: $KUBECTL_VERSION"
                         else
                             echo "⚠️  kubectl not found - EKS cluster verification will be skipped"
                             echo "   Install kubectl to enable post-deployment cluster checks"
