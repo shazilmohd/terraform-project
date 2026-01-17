@@ -70,10 +70,14 @@ pipeline {
                         # Verify AWS credentials
                         aws sts get-caller-identity
                         
-                        # Check if env/dev directory exists
-                        if [ ! -d "${TF_WORKING_DIR}" ]; then
-                            echo "Error: ${TF_WORKING_DIR} directory not found"
-                            exit 1
+                        # Check if environment directory exists (skip for parallel-destroy-all)
+                        if [ "${ENVIRONMENT}" != "parallel-destroy-all" ]; then
+                            if [ ! -d "${TF_WORKING_DIR}" ]; then
+                                echo "Error: ${TF_WORKING_DIR} directory not found"
+                                exit 1
+                            fi
+                        else
+                            echo "✓ Skipping directory check for parallel-destroy-all (special mode)"
                         fi
                         
                         echo "✓ All pre-validation checks passed"
@@ -87,8 +91,8 @@ pipeline {
                 script {
                     echo "========== Validating pipeline parameters =========="
                     
-                    // Validate ENVIRONMENT parameter
-                    def validEnvironments = ['dev', 'stage', 'prod']
+                    // Validate ENVIRONMENT parameter (including special parallel-destroy-all)
+                    def validEnvironments = ['dev', 'stage', 'prod', 'parallel-destroy-all']
                     if (!validEnvironments.contains(params.ENVIRONMENT)) {
                         error("❌ Invalid ENVIRONMENT: ${params.ENVIRONMENT}. Must be one of: ${validEnvironments.join(', ')}")
                     }
