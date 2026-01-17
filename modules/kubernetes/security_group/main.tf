@@ -40,8 +40,6 @@ resource "aws_vpc_security_group_ingress_rule" "cluster_self" {
 # Allow all outbound from cluster
 resource "aws_vpc_security_group_egress_rule" "cluster_all_outbound" {
   description       = "Allow all outbound traffic from cluster"
-  from_port         = 0
-  to_port           = 0
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
   security_group_id = aws_security_group.eks_cluster_sg.id
@@ -107,8 +105,6 @@ resource "aws_vpc_security_group_ingress_rule" "node_ssh" {
 # Allow all outbound from nodes
 resource "aws_vpc_security_group_egress_rule" "node_all_outbound" {
   description       = "Allow all outbound traffic from nodes"
-  from_port         = 0
-  to_port           = 0
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
   security_group_id = aws_security_group.eks_node_sg.id
