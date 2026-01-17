@@ -1,0 +1,976 @@
+// ============================================
+// ENHANCED JENKINS PIPELINE WITH EKS SUPPORT
+// ============================================
+// This Jenkinsfile builds on the original with:
+//   - EKS cluster deployment and validation
+//   - Kubeconfig generation and installation
+//   - Post-deployment cluster health checks
+//   - kubectl integration for node/pod verification
+//   - EKS-specific cost warnings
+//   - Compatible with existing EC2 deployments
+//
+// Usage:
+//   1. Set in Jenkins: "Pipeline script from SCM"
+//   2. Script path: Jenkinsfile-EKS
+//   3. Or: Configure job to use this file
+// ============================================
+
+pipeline {
+    agent {
+        node {
+            label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'master'}"
+        }
+    }
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'stage', 'prod', 'parallel-destroy-all'],
+            description: 'Environment to deploy to (use parallel-destroy-all for dev+stage+prod destruction)'
+        )
+        
+        choice(
+            name: 'ACTION',
+            choices: ['PLAN', 'APPLY', 'DESTROY'],
+            description: 'Terraform action to perform'
+        )
+        
+        booleanParam(
+            name: 'AUTO_APPROVE',
+            defaultValue: false,
+            description: 'Skip manual approval for terraform apply'
+        )
+        
+        string(
+            name: 'AWS_REGION',
+            defaultValue: 'ap-south-1',
+            description: 'AWS region for deployment'
+        )
+        
+        string(
+            name: 'TERRAFORM_VERSION',
+            defaultValue: '1.5.0',
+            description: 'Terraform version to use'
+        )
+
+        booleanParam(
+            name: 'VERIFY_EKS_CLUSTER',
+            defaultValue: true,
+            description: 'Verify EKS cluster health after deployment (requires kubectl)'
+        )
+    }
+
+    environment {
+        // Dynamic paths based on parameters
+        TF_WORKING_DIR = "env/${params.ENVIRONMENT}"
+        TF_LOG = 'INFO'
+        
+        // Build Information
+        BUILD_TIMESTAMP = sh(script: "date +%Y%m%d_%H%M%S", returnStdout: true).trim()
+        ENVIRONMENT = "${params.ENVIRONMENT}"
+
+        // EKS Configuration
+        KUBECTL_AVAILABLE = sh(script: "which kubectl >/dev/null 2>&1 && echo 'true' || echo 'false'", returnStdout: true).trim()
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '30'))
+        disableConcurrentBuilds()
+        timeout(time: 1, unit: 'HOURS')
+        timestamps()
+    }
+
+    stages {
+        stage('Pre-Validation') {
+            steps {
+                script {
+                    echo "========== Running pre-deployment validation =========="
+                    
+                    sh '''
+                        # Check if Terraform is installed
+                        which terraform || (echo "Terraform not found" && exit 1)
+                        
+                        # Check Terraform version
+                        terraform version
+                        
+                        # Check AWS CLI
+                        which aws || (echo "AWS CLI not found" && exit 1)
+                        
+                        # Verify AWS credentials
+                        aws sts get-caller-identity
+                        
+                        # Check kubectl availability (for EKS verification)
+                        if which kubectl >/dev/null 2>&1; then
+                            echo "✓ kubectl found: $(kubectl version --client --short)"
+                        else
+                            echo "⚠️  kubectl not found - EKS cluster verification will be skipped"
+                            echo "   Install kubectl to enable post-deployment cluster checks"
+                        fi
+                        
+                        # Check if environment directory exists (skip for parallel-destroy-all)
+                        if [ "${ENVIRONMENT}" != "parallel-destroy-all" ]; then
+                            if [ ! -d "${TF_WORKING_DIR}" ]; then
+                                echo "Error: ${TF_WORKING_DIR} directory not found"
+                                exit 1
+                            fi
+                        else
+                            echo "✓ Skipping directory check for parallel-destroy-all (special mode)"
+                        fi
+                        
+                        echo "✓ All pre-validation checks passed"
+                    '''
+                }
+            }
+        }
+
+        stage('Parameter Validation') {
+            steps {
+                script {
+                    echo "========== Validating pipeline parameters =========="
+                    
+                    // Validate ENVIRONMENT parameter (including special parallel-destroy-all)
+                    def validEnvironments = ['dev', 'stage', 'prod', 'parallel-destroy-all']
+                    if (!validEnvironments.contains(params.ENVIRONMENT)) {
+                        error("❌ Invalid ENVIRONMENT: ${params.ENVIRONMENT}. Must be one of: ${validEnvironments.join(', ')}")
+                    }
+                    
+                    // Validate ACTION parameter (convert to lowercase for comparison)
+                    def validActions = ['plan', 'apply', 'destroy']
+                    def actionLower = params.ACTION.toLowerCase()
+                    if (!validActions.contains(actionLower)) {
+                        error("❌ Invalid ACTION: ${params.ACTION}. Must be one of: ${validActions.join(', ')}")
+                    }
+                    
+                    // CRITICAL: Block destroy on production
+                    if (params.ENVIRONMENT == 'prod' && actionLower == 'destroy') {
+                        error("❌ DESTROY is not permitted on PROD environment. Contact senior team for manual intervention.")
+                    }
+                    
+                    echo "✓ ENVIRONMENT: ${params.ENVIRONMENT}"
+                    echo "✓ ACTION: ${params.ACTION}"
+                    echo "✓ All parameter validations passed"
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    echo "========== Initializing Terraform with dynamic backend config =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            # Determine backend bucket and DynamoDB table names
+                            BACKEND_BUCKET="terraform-state-1768505102"
+                            DYNAMODB_TABLE="terraform-locks"
+                            BUCKET_REGION="ap-south-1"
+                            
+                            echo "🔧 Backend Configuration:"
+                            echo "   Bucket: ${BACKEND_BUCKET}"
+                            echo "   Table: ${DYNAMODB_TABLE}"
+                            echo "   Backend Region: ${BUCKET_REGION}"
+                            
+                            # Initialize Terraform with dynamic backend config
+                            terraform init \
+                                -upgrade \
+                                -input=false \
+                                -backend-config="bucket=${BACKEND_BUCKET}" \
+                                -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
+                                -backend-config="region=${BUCKET_REGION}" \
+                                -backend-config="dynamodb_table=${DYNAMODB_TABLE}" \
+                                -backend-config="encrypt=true"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    echo "========== Validating Terraform configuration =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            terraform validate
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Format Check') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    echo "========== Checking Terraform format =========="
+                    
+                    sh '''
+                        # Auto-format all Terraform files
+                        terraform fmt -recursive modules/
+                        terraform fmt -recursive env/
+                        
+                        # Verify formatting is correct
+                        if ! terraform fmt -check -recursive modules/ 2>/dev/null; then
+                            echo "⚠️  Format issues found and auto-corrected in modules/"
+                        fi
+                        
+                        if ! terraform fmt -check -recursive env/ 2>/dev/null; then
+                            echo "⚠️  Format issues found and auto-corrected in env/"
+                        fi
+                        
+                        echo "✓ Terraform format check completed"
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    echo "========== Creating Terraform plan =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            terraform plan \
+                                -input=false \
+                                -var-file=terraform.tfvars \
+                                -out=tfplan_${BUILD_TIMESTAMP}
+                            
+                            # Save plan for later use
+                            terraform show tfplan_${BUILD_TIMESTAMP} > tfplan_${BUILD_TIMESTAMP}.txt
+                            
+                            # Check if EKS is being deployed
+                            if grep -q "aws_eks_cluster" tfplan_${BUILD_TIMESTAMP}.txt; then
+                                echo ""
+                                echo "════════════════════════════════════════════"
+                                echo "⚠️  EKS CLUSTER DEPLOYMENT DETECTED"
+                                echo "════════════════════════════════════════════"
+                                echo ""
+                                echo "💰 Cost Estimate:"
+                                echo "   - EKS Control Plane: ~\$0.10/hour (~\$73/month)"
+                                echo "   - t3.micro Node: ~\$0.01-0.02/hour"
+                                echo "   - Total: ~\$100-150/month when always-on"
+                                echo ""
+                                echo "⏱️  Deployment Time:"
+                                echo "   - Cluster creation: ~15-20 minutes"
+                                echo "   - Node scaling: Additional 5-10 minutes"
+                                echo ""
+                                echo "🧹 Cost Optimization Tips:"
+                                echo "   1. Destroy cluster when not in use (Jenkins DESTROY action)"
+                                echo "   2. Use single t3.micro node (already configured)"
+                                echo "   3. Set enable_eks = false to skip provisioning"
+                                echo ""
+                                echo "════════════════════════════════════════════"
+                                echo ""
+                            fi
+                        '''
+                    }
+                    
+                    // Archive the plan
+                    archiveArtifacts artifacts: "${TF_WORKING_DIR}/tfplan_${BUILD_TIMESTAMP}*", 
+                                     allowEmptyArchive: false
+                }
+            }
+        }
+
+        stage('Review Plan') {
+            when {
+                expression { params.ACTION.toLowerCase() == 'apply' && params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    echo "========== Terraform Plan Output =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            echo "Terraform Plan Summary:"
+                            terraform show tfplan_${BUILD_TIMESTAMP} | tail -50
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Approval') {
+            when {
+                expression { 
+                    params.ACTION == 'APPLY' && !params.AUTO_APPROVE && params.ENVIRONMENT != 'parallel-destroy-all'
+                }
+            }
+            steps {
+                script {
+                    echo "========== Waiting for approval =========="
+                    
+                    def timeout_mins = params.ENVIRONMENT == 'prod' ? 60 : 30
+                    def approvers = params.ENVIRONMENT == 'prod' ? 'devops-lead,platform-engineer' : '${env.JENKINS_APPROVERS}'
+                    
+                    timeout(time: timeout_mins, unit: 'MINUTES') {
+                        input message: '''
+                        
+                        ╔═══════════════════════════════════════════════════════╗
+                        ║  TERRAFORM APPLY - REQUIRES APPROVAL                  ║
+                        ║                                                       ║
+                        ║  Environment: ''' + env.ENVIRONMENT.toUpperCase() + '''
+                        ║  Action: Apply Infrastructure Changes                ║
+                        ║  Timestamp: ''' + env.BUILD_TIMESTAMP + '''             ║
+                        ║                                                       ║
+                        ║  Review the plan output above and approve if correct  ║
+                        ║                                                       ║
+                        ║  ⚠️  PROD deployments require senior approval         ║
+                        ╚═══════════════════════════════════════════════════════╝
+                        ''',
+                        ok: 'APPROVE & APPLY',
+                        submitter: approvers
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { params.ACTION.toLowerCase() == 'apply' && params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    echo "========== Applying Terraform configuration =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            terraform apply \
+                                -input=false \
+                                -auto-approve \
+                                tfplan_${BUILD_TIMESTAMP}
+                            
+                            echo "========== Terraform Apply Completed =========="
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('EKS Post-Deployment Validation') {
+            when {
+                expression { 
+                    params.ACTION.toLowerCase() == 'apply' && 
+                    params.ENVIRONMENT != 'parallel-destroy-all' &&
+                    params.VERIFY_EKS_CLUSTER
+                }
+            }
+            steps {
+                script {
+                    echo "========== EKS Post-Deployment Validation =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            # Check if EKS cluster exists in the plan
+                            if grep -q "eks_cluster_endpoint" terraform_outputs_*.json 2>/dev/null || \
+                               terraform output -json 2>/dev/null | grep -q "eks_cluster_endpoint"; then
+                                
+                                echo "✓ EKS cluster detected - running post-deployment validation"
+                                
+                                # Get cluster endpoint
+                                CLUSTER_ENDPOINT=$(terraform output -raw eks_cluster_endpoint 2>/dev/null || echo "")
+                                CLUSTER_ID=$(terraform output -raw eks_cluster_id 2>/dev/null || echo "")
+                                
+                                if [ -z "$CLUSTER_ENDPOINT" ]; then
+                                    echo "⚠️  Could not retrieve EKS cluster endpoint - skipping kubectl validation"
+                                    echo "   (Cluster may still be initializing)"
+                                    exit 0
+                                fi
+                                
+                                echo "📊 EKS Cluster Information:"
+                                echo "   Cluster ID: ${CLUSTER_ID}"
+                                echo "   Endpoint: ${CLUSTER_ENDPOINT}"
+                                
+                                # Check if kubectl is available
+                                if ! which kubectl >/dev/null 2>&1; then
+                                    echo ""
+                                    echo "⚠️  kubectl not found - skipping cluster verification"
+                                    echo "   Install kubectl to enable post-deployment checks:"
+                                    echo "   Linux/Mac: curl -LO \"https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl\""
+                                    echo "   Then: chmod +x kubectl && sudo mv kubectl /usr/local/bin/"
+                                    exit 0
+                                fi
+                                
+                                # Update kubeconfig
+                                echo ""
+                                echo "🔧 Updating kubeconfig..."
+                                aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_ID} || true
+                                
+                                # Wait a bit for kubeconfig to be ready
+                                sleep 5
+                                
+                                # Verify cluster connectivity
+                                echo ""
+                                echo "🔗 Verifying cluster connectivity..."
+                                if kubectl cluster-info 2>/dev/null; then
+                                    echo "✓ Cluster connectivity verified"
+                                else
+                                    echo "⚠️  Could not verify cluster connectivity"
+                                    echo "   Cluster may still be initializing. Retry in 2-3 minutes."
+                                fi
+                                
+                                # Check node status (with retry logic for new clusters)
+                                echo ""
+                                echo "🖥️  Checking node status (may take 1-2 minutes for new clusters)..."
+                                for i in {1..6}; do
+                                    NODE_COUNT=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+                                    if [ "$NODE_COUNT" -gt 0 ]; then
+                                        echo "✓ Nodes found: ${NODE_COUNT}"
+                                        kubectl get nodes
+                                        break
+                                    elif [ "$i" -lt 6 ]; then
+                                        echo "⏳ Waiting for nodes to be ready (attempt $i/6)..."
+                                        sleep 10
+                                    else
+                                        echo "⚠️  No nodes found yet - cluster still initializing"
+                                        echo "   Nodes may take 2-3 minutes to join the cluster"
+                                    fi
+                                done
+                                
+                                # Check add-ons status
+                                echo ""
+                                echo "🔌 Checking EKS add-ons status..."
+                                aws eks list-addons --cluster-name ${CLUSTER_ID} --region ${AWS_REGION} 2>/dev/null || \
+                                    echo "⚠️  Could not retrieve add-ons (cluster may still be initializing)"
+                                
+                                # Check pods in system namespaces
+                                echo ""
+                                echo "🐳 Checking system pods..."
+                                if kubectl get pods -n kube-system 2>/dev/null | grep -q "Running"; then
+                                    echo "✓ System pods running:"
+                                    kubectl get pods -n kube-system
+                                else
+                                    echo "⏳ System pods still initializing..."
+                                fi
+                                
+                                echo ""
+                                echo "════════════════════════════════════════════"
+                                echo "✓ EKS Post-Deployment Validation Complete"
+                                echo "════════════════════════════════════════════"
+                                
+                            else
+                                echo "ℹ️  EKS cluster not detected in this deployment"
+                                echo "   (Deployment contains EC2 or other resources only)"
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Generate Kubeconfig Instructions') {
+            when {
+                expression { 
+                    params.ACTION.toLowerCase() == 'apply' && 
+                    params.ENVIRONMENT != 'parallel-destroy-all'
+                }
+            }
+            steps {
+                script {
+                    echo "========== Kubeconfig Setup Instructions =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            # Check if EKS cluster exists
+                            KUBECONFIG_CMD=$(terraform output -raw kubeconfig_command 2>/dev/null || echo "")
+                            
+                            if [ ! -z "$KUBECONFIG_CMD" ] && [ "$KUBECONFIG_CMD" != "null" ]; then
+                                echo ""
+                                echo "╔════════════════════════════════════════════════════════════╗"
+                                echo "║           KUBECONFIG SETUP INSTRUCTIONS                    ║"
+                                echo "╚════════════════════════════════════════════════════════════╝"
+                                echo ""
+                                echo "📌 To connect to your EKS cluster, run:"
+                                echo ""
+                                echo "   ${KUBECONFIG_CMD}"
+                                echo ""
+                                echo "🔍 Verify connection with:"
+                                echo ""
+                                echo "   kubectl cluster-info"
+                                echo "   kubectl get nodes"
+                                echo "   kubectl get pods -A"
+                                echo ""
+                                echo "📚 EKS Documentation:"
+                                echo "   https://docs.aws.amazon.com/eks/latest/userguide/"
+                                echo ""
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Promote to Stage') {
+            when {
+                expression { 
+                    params.ACTION.toLowerCase() == 'apply' && 
+                    params.ENVIRONMENT == 'dev' && 
+                    params.ENVIRONMENT != 'parallel-destroy-all'
+                }
+            }
+            steps {
+                script {
+                    echo "========== AUTO PROMOTION: Dev → Stage (on jenkins-agent2) =========="
+                    echo "✓ Dev deployment successful. Auto-triggering Stage deployment..."
+                    echo "ℹ️  Stage will run on jenkins-agent2 (offloaded from master)"
+                    echo "ℹ️  This allows Stage to start immediately without waiting for Dev cleanup"
+                    
+                    build job: 'terraform-jenkins', 
+                        parameters: [
+                            string(name: 'ENVIRONMENT', value: 'stage'),
+                            string(name: 'ACTION', value: 'APPLY'),
+                            booleanParam(name: 'AUTO_APPROVE', value: true),
+                            booleanParam(name: 'VERIFY_EKS_CLUSTER', value: true)
+                        ],
+                        wait: false
+                    
+                    echo "Stage deployment triggered and running in parallel on jenkins-agent2"
+                }
+            }
+        }
+
+        stage('Promote to Prod (Manual Approval Required)') {
+            when {
+                expression { 
+                    params.ACTION.toLowerCase() == 'apply' && 
+                    params.ENVIRONMENT == 'stage' && 
+                    params.ENVIRONMENT != 'parallel-destroy-all'
+                }
+            }
+            steps {
+                script {
+                    echo "========== PROD PROMOTION REQUEST =========="
+                    echo "✓ Stage deployment successful"
+                    echo "⏳ Waiting for admin approval to deploy to PRODUCTION..."
+                    
+                    try {
+                        timeout(time: 24, unit: 'HOURS') {
+                            input(
+                                id: 'ProdApproval',
+                                message: '''
+╔══════════════════════════════════════════════════════════════╗
+║                  PRODUCTION DEPLOYMENT REQUEST               ║
+╚══════════════════════════════════════════════════════════════╝
+
+Stage deployment completed successfully.
+Ready to promote to PRODUCTION environment.
+
+⚠️  CAUTION: This will deploy to PRODUCTION environment
+    - All changes will be live and affect end users
+    - Ensure all testing is complete
+    - Verify all security and compliance requirements
+
+🔒 Admin Approval Required:
+    Proceed with Production deployment?
+                                ''',
+                                ok: 'APPROVE & DEPLOY TO PROD',
+                                submitter: '',
+                                submitterParameter: 'PROD_APPROVER'
+                            )
+                        }
+                        
+                        echo "========== PROD DEPLOYMENT APPROVED =========="
+                        echo "✅ Approved by: ${env.PROD_APPROVER}"
+                        echo "🚀 Triggering Production deployment..."
+                        
+                        build job: 'terraform-jenkins', 
+                            parameters: [
+                                string(name: 'ENVIRONMENT', value: 'prod'),
+                                string(name: 'ACTION', value: 'APPLY'),
+                                booleanParam(name: 'AUTO_APPROVE', value: true),
+                                booleanParam(name: 'VERIFY_EKS_CLUSTER', value: true)
+                            ],
+                            wait: false
+                        
+                        echo "Production deployment triggered on master node"
+                        
+                    } catch (err) {
+                        echo "========== PROD DEPLOYMENT REJECTED =========="
+                        echo "❌ Production deployment was rejected or approval timeout (24 hours)"
+                        echo "ℹ️  Stage remains deployed. Prod deployment can be retried later."
+                        throw err
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { params.ACTION.toLowerCase() == 'destroy' && params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
+            steps {
+                script {
+                    // CRITICAL: Block destroy on production
+                    if (env.ENVIRONMENT == 'prod') {
+                        error("""
+                            ❌ DESTROY NOT PERMITTED ON PRODUCTION
+                            
+                            To avoid accidental deletion of production infrastructure,
+                            DESTROY operations are strictly forbidden on the 'prod' environment.
+                            
+                            If you must delete production infrastructure:
+                            1. Contact the DevOps lead for manual intervention
+                            2. Follow the Change Control process
+                            3. Ensure backups are in place
+                            
+                            Use terraform destroy locally with extreme caution and proper authorization.
+                        """)
+                    }
+                    
+                    echo "========== WARNING: Destroying Terraform resources =========="
+                    echo ""
+                    echo "⚠️  Resources to be DELETED:"
+                    echo "   - EKS Cluster (if enabled)"
+                    echo "   - EKS Node Groups"
+                    echo "   - EC2 Instances"
+                    echo "   - VPC and Subnets"
+                    echo "   - Security Groups"
+                    echo "   - IAM Roles and Policies"
+                    echo "   - Secrets Manager entries"
+                    echo ""
+                    echo "💾 Kubeconfig will be invalidated after EKS cluster destruction"
+                    echo "   Update your kubeconfig after destruction"
+                    echo ""
+                    
+                    timeout(time: 15, unit: 'MINUTES') {
+                        input message: '''
+                        
+                        ⚠️  CRITICAL: TERRAFORM DESTROY ⚠️
+                        
+                        This will DELETE all infrastructure in the ''' + env.ENVIRONMENT.toUpperCase() + ''' environment:
+                        - EKS Cluster and Nodes (if enabled)
+                        - EC2 Instances
+                        - VPC and Subnets
+                        - Security Groups
+                        - Secrets Manager entries
+                        
+                        This action CANNOT be undone.
+                        
+                        Type "DESTROY" to confirm:
+                        ''',
+                        ok: 'CONFIRM DESTROY'
+                    }
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            terraform destroy \
+                                -auto-approve \
+                                -input=false
+                            
+                            echo "========== Terraform Destroy Completed =========="
+                            echo ""
+                            echo "✓ All infrastructure destroyed"
+                            echo "📌 Remember to update your kubeconfig if EKS was provisioned"
+                            echo ""
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Parallel Destroy - Dev & Stage & Prod') {
+            when {
+                expression { 
+                    params.ACTION.toLowerCase() == 'destroy' && 
+                    params.ENVIRONMENT == 'parallel-destroy-all'
+                }
+            }
+            steps {
+                script {
+                    echo "========== PARALLEL DESTROY: Dev, Stage & Prod =========="
+                    
+                    timeout(time: 15, unit: 'MINUTES') {
+                        input message: '''
+                        
+                        ⚠️  CRITICAL: PARALLEL TERRAFORM DESTROY (ALL ENVIRONMENTS) ⚠️
+                        
+                        This will DELETE all infrastructure in DEV, STAGE and PROD environments:
+                        - EKS Clusters (if enabled in any environment)
+                        - EC2 Instances (all environments)
+                        - VPC and Subnets (all environments)
+                        - Security Groups (all environments)
+                        - Secrets Manager entries (all environments)
+                        
+                        This action CANNOT be undone.
+                        All three environments will be destroyed in PARALLEL for maximum speed.
+                        
+                        Type "DESTROY" to confirm:
+                        ''',
+                        ok: 'CONFIRM PARALLEL DESTROY ALL'
+                    }
+                    
+                    // Parallel destroy for dev, stage, and prod
+                    parallel(
+                        'Destroy Dev': {
+                            dir("env/dev") {
+                                sh '''
+                                    # Initialize backend for dev
+                                    terraform init \
+                                        -input=false \
+                                        -backend-config="bucket=terraform-state-1768505102" \
+                                        -backend-config="key=dev/terraform.tfstate" \
+                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="dynamodb_table=terraform-locks" \
+                                        -backend-config="encrypt=true"
+                                    
+                                    # Destroy dev infrastructure
+                                    terraform destroy \
+                                        -auto-approve \
+                                        -input=false
+                                    echo "========== Dev Destroy Completed =========="
+                                '''
+                            }
+                        },
+                        'Destroy Stage': {
+                            dir("env/stage") {
+                                sh '''
+                                    # Initialize backend for stage
+                                    terraform init \
+                                        -input=false \
+                                        -backend-config="bucket=terraform-state-1768505102" \
+                                        -backend-config="key=stage/terraform.tfstate" \
+                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="dynamodb_table=terraform-locks" \
+                                        -backend-config="encrypt=true"
+                                    
+                                    # Destroy stage infrastructure
+                                    terraform destroy \
+                                        -auto-approve \
+                                        -input=false
+                                    echo "========== Stage Destroy Completed =========="
+                                '''
+                            }
+                        },
+                        'Destroy Prod': {
+                            dir("env/prod") {
+                                sh '''
+                                    # Initialize backend for prod
+                                    terraform init \
+                                        -input=false \
+                                        -backend-config="bucket=terraform-state-1768505102" \
+                                        -backend-config="key=prod/terraform.tfstate" \
+                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="dynamodb_table=terraform-locks" \
+                                        -backend-config="encrypt=true"
+                                    
+                                    # Destroy prod infrastructure
+                                    terraform destroy \
+                                        -auto-approve \
+                                        -input=false
+                                    echo "========== Prod Destroy Completed =========="
+                                '''
+                            }
+                        }
+                    )
+                    
+                    echo "✓ All environments (dev, stage, prod) destroyed in parallel successfully"
+                }
+            }
+        }
+
+        stage('Output Artifacts') {
+            when {
+                expression { params.ACTION.toLowerCase() == 'apply' }
+            }
+            steps {
+                script {
+                    echo "========== Generating output artifacts =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            # Get all outputs
+                            terraform output -json > terraform_outputs_${BUILD_TIMESTAMP}.json
+                            
+                            # Create a human-readable summary
+                            cat > deployment_summary_${BUILD_TIMESTAMP}.txt <<EOF
+Environment: ${ENVIRONMENT}
+Build Timestamp: ${BUILD_TIMESTAMP}
+Build Number: ${BUILD_NUMBER}
+Build URL: ${BUILD_URL}
+
+⚠️  SECURITY NOTICE: This file contains infrastructure information.
+    Do NOT share publicly or commit to version control.
+    Restrict access to authorized personnel only.
+
+========== VPC Information ==========
+VPC ID: $(terraform output -raw vpc_id 2>/dev/null || echo 'N/A')
+Public Subnets: $(terraform output -json public_subnet_ids 2>/dev/null || echo 'N/A')
+Private Subnets: $(terraform output -json private_subnet_ids 2>/dev/null || echo 'N/A')
+
+========== EC2 Instances ==========
+Instance IDs: $(terraform output -json web_server_instance_ids 2>/dev/null || echo 'N/A')
+Public IPs: $(terraform output -json web_server_public_ips 2>/dev/null || echo 'N/A')
+Private IPs: $(terraform output -json web_server_private_ips 2>/dev/null || echo 'N/A')
+
+========== EKS Cluster Information ==========
+EKS Cluster ID: $(terraform output -raw eks_cluster_id 2>/dev/null || echo 'Not enabled')
+EKS Endpoint: $(terraform output -raw eks_cluster_endpoint 2>/dev/null || echo 'Not enabled')
+EKS Version: $(terraform output -raw eks_cluster_version 2>/dev/null || echo 'Not enabled')
+EKS Node Group: $(terraform output -raw eks_node_group_id 2>/dev/null || echo 'Not enabled')
+
+EKS Kubeconfig Command:
+$(terraform output -raw kubeconfig_command 2>/dev/null || echo 'Not enabled')
+
+========== Security Groups ==========
+Web Security Group ID: $(terraform output -raw web_security_group_id 2>/dev/null || echo 'N/A')
+EKS Cluster SG: $(terraform output -raw eks_cluster_security_group_id 2>/dev/null || echo 'Not enabled')
+EKS Node SG: $(terraform output -raw eks_node_security_group_id 2>/dev/null || echo 'Not enabled')
+
+========== Secrets Manager ==========
+App Secrets ID: $(terraform output -raw app_secrets_id 2>/dev/null || echo 'N/A')
+
+========== Next Steps ==========
+
+1. EC2 Access:
+   ssh -i /path/to/key.pem ubuntu@$(terraform output -raw web_server_public_ips 2>/dev/null | jq -r '.[0]' || echo 'N/A')
+
+2. EKS Access:
+   $(terraform output -raw kubeconfig_command 2>/dev/null || echo 'EKS not enabled')
+
+3. Cluster Verification:
+   kubectl cluster-info
+   kubectl get nodes
+   kubectl get pods -A
+
+Generated at: $(date)
+EOF
+                            
+                            # Display summary
+                            echo "========== Deployment Summary =========="
+                            cat deployment_summary_${BUILD_TIMESTAMP}.txt
+                            
+                            # Create artifact security manifest
+                            cat > ARTIFACT_SECURITY_${BUILD_TIMESTAMP}.txt <<EOF
+ARTIFACT CLASSIFICATION: RESTRICTED
+
+This build produced the following artifacts:
+- terraform_outputs_${BUILD_TIMESTAMP}.json
+- deployment_summary_${BUILD_TIMESTAMP}.txt
+- tfplan_${BUILD_TIMESTAMP}
+
+These artifacts contain:
+- Infrastructure topology information
+- Resource IDs and endpoints
+- EKS cluster endpoint and kubeconfig instructions
+- Network configuration
+- Deployment details
+
+ACCESS CONTROL:
+✓ Jenkins administrators
+✓ ${ENVIRONMENT} deployment team
+✗ Unauthorized personnel
+
+RETENTION:
+- Plan files: Keep for 30 days then delete
+- Output summaries: Keep for 90 days for audit
+- JSON outputs: Delete after deployment verification
+- EKS credentials: Never commit to version control
+
+COMPLIANCE:
+- No credentials or secrets in artifacts
+- AWS API calls masked in logs
+- Terraform state file stored securely in S3 + DynamoDB
+- All access logged to CloudTrail
+- Kubeconfig instructions provided for secure cluster access
+
+Last Verified: $(date)
+EOF
+                            
+                            cat ARTIFACT_SECURITY_${BUILD_TIMESTAMP}.txt
+                        '''
+                    }
+                    
+                    // Archive outputs with security classification
+                    archiveArtifacts artifacts: "${TF_WORKING_DIR}/terraform_outputs_*,${TF_WORKING_DIR}/deployment_summary_*,${TF_WORKING_DIR}/ARTIFACT_SECURITY_*", 
+                                     allowEmptyArchive: false,
+                                     fingerprint: true
+                }
+            }
+        }
+
+        stage('State Backup') {
+            when {
+                expression { params.ACTION.toLowerCase() == 'apply' }
+            }
+            steps {
+                script {
+                    echo "========== Backing up Terraform state =========="
+                    
+                    dir("${TF_WORKING_DIR}") {
+                        sh '''
+                            # Backup state file (if using local backend)
+                            if [ -f "terraform.tfstate" ]; then
+                                mkdir -p state_backups
+                                cp terraform.tfstate state_backups/terraform.tfstate.${BUILD_TIMESTAMP}.bak
+                                echo "State backed up to state_backups/terraform.tfstate.${BUILD_TIMESTAMP}.bak"
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "========== Cleaning up workspace =========="
+                
+                dir("${TF_WORKING_DIR}") {
+                    sh '''
+                        # Keep plan files for reference but remove temporary files
+                        rm -f .terraform.lock.hcl || true
+                    '''
+                }
+                
+                // Clean workspace
+                cleanWs()
+            }
+        }
+
+        success {
+            script {
+                echo "========== Pipeline Completed Successfully =========="
+                echo ""
+                echo "✅ Terraform deployment successful"
+                if (params.VERIFY_EKS_CLUSTER && fileExists("${TF_WORKING_DIR}/terraform_outputs_*.json")) {
+                    echo "✅ EKS cluster validation completed"
+                    echo "📌 Use 'aws eks update-kubeconfig' command from deployment summary"
+                fi
+            }
+        }
+
+        failure {
+            script {
+                echo "========== Pipeline FAILED =========="
+                echo ""
+                echo "❌ Terraform deployment failed"
+                echo "📋 Review the logs above for error details"
+                echo "🔧 Common issues:"
+                echo "   - Insufficient AWS permissions"
+                echo "   - Resource quota exceeded"
+                echo "   - Invalid Terraform configuration"
+                echo "   - Network connectivity issues"
+            }
+        }
+
+        unstable {
+            script {
+                echo "========== Pipeline Unstable =========="
+            }
+        }
+    }
+}

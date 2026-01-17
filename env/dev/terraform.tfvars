@@ -20,3 +20,14 @@ secrets_manager_secret_name = "terraform-env-vars"
 
 # Key pair name (from AWS EC2 Key Pairs) - leave empty to skip key setup
 # key_pair_name = "my-dev-keypair"
+
+# EKS Configuration (Optional)
+# Set enable_eks = true to provision an EKS cluster
+enable_eks               = true
+eks_cluster_name         = "dev-eks"
+eks_cluster_version      = "1.29"
+eks_node_instance_type   = "t3.micro"
+eks_desired_size         = 1
+eks_min_size             = 1
+eks_max_size             = 1
+eks_disk_size            = 20
