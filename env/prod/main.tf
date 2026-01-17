@@ -16,8 +16,10 @@ provider "aws" {
 }
 
 # Data source to fetch secrets from AWS Secrets Manager
+# Must depend on module.app_secrets to ensure secret is created first
 data "aws_secretsmanager_secret_version" "env_secrets" {
   secret_id = var.secrets_manager_secret_name
+  depends_on = [module.app_secrets]
 }
 
 locals {

@@ -4,8 +4,8 @@ pipeline {
     parameters {
         choice(
             name: 'ENVIRONMENT',
-            choices: ['dev', 'stage', 'prod', 'parallel-destroy'],
-            description: 'Environment to deploy to (use parallel-destroy for dev+stage destruction)'
+            choices: ['dev', 'stage', 'prod', 'parallel-destroy-all'],
+            description: 'Environment to deploy to (use parallel-destroy-all for dev+stage+prod destruction)'
         )
         
         choice(
@@ -386,33 +386,33 @@ pipeline {
             when {
                 expression { 
                     params.ACTION.toLowerCase() == 'destroy' && 
-                    params.ENVIRONMENT == 'parallel-destroy'
+                    params.ENVIRONMENT == 'parallel-destroy-all'
                 }
             }
             steps {
                 script {
-                    echo "========== PARALLEL DESTROY: Dev & Stage =========="
+                    echo "========== PARALLEL DESTROY: Dev, Stage & Prod =========="
                     
                     timeout(time: 15, unit: 'MINUTES') {
                         input message: '''
                         
-                        ⚠️  CRITICAL: PARALLEL TERRAFORM DESTROY ⚠️
+                        ⚠️  CRITICAL: PARALLEL TERRAFORM DESTROY (ALL ENVIRONMENTS) ⚠️
                         
-                        This will DELETE all infrastructure in DEV and STAGE environments:
-                        - EC2 Instances (both environments)
-                        - VPC and Subnets (both environments)
-                        - Security Groups (both environments)
-                        - Secrets Manager entries (both environments)
+                        This will DELETE all infrastructure in DEV, STAGE and PROD environments:
+                        - EC2 Instances (all environments)
+                        - VPC and Subnets (all environments)
+                        - Security Groups (all environments)
+                        - Secrets Manager entries (all environments)
                         
                         This action CANNOT be undone.
-                        Environments will be destroyed in PARALLEL for speed.
+                        All three environments will be destroyed in PARALLEL for maximum speed.
                         
                         Type "DESTROY" to confirm:
                         ''',
-                        ok: 'CONFIRM PARALLEL DESTROY'
+                        ok: 'CONFIRM PARALLEL DESTROY ALL'
                     }
                     
-                    // Parallel destroy for dev and stage
+                    // Parallel destroy for dev, stage, and prod
                     parallel(
                         'Destroy Dev': {
                             dir("env/dev") {
@@ -433,10 +433,20 @@ pipeline {
                                     echo "========== Stage Destroy Completed =========="
                                 '''
                             }
+                        },
+                        'Destroy Prod': {
+                            dir("env/prod") {
+                                sh '''
+                                    terraform destroy \
+                                        -auto-approve \
+                                        -input=false
+                                    echo "========== Prod Destroy Completed =========="
+                                '''
+                            }
                         }
                     )
                     
-                    echo "✓ Dev and Stage destroyed in parallel successfully"
+                    echo "✓ All environments (dev, stage, prod) destroyed in parallel successfully"
                 }
             }
         }
