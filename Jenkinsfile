@@ -1,5 +1,24 @@
+// ============================================
+// AGENT DISTRIBUTION STRATEGY
+// ============================================
+// Dev:                 Master/Any agent (primary)
+// Stage:               jenkins-agent2 (secondary - enables parallel with dev cleanup)
+// Prod:                Master/Any agent (primary)
+// Parallel-Destroy-All: Master/Any agent (primary)
+//
+// This allows Stage deployment to run in parallel with Dev cleanup
+// reducing total deployment time for dev -> stage -> prod chain
+// ============================================
+
 pipeline {
-    agent any
+    agent {
+        label {
+            label "${params.ENVIRONMENT == 'stage' ? 'jenkins-agent2' : 'any'}"
+            when {
+                beforeAgent true
+            }
+        }
+    }
 
     parameters {
         choice(
@@ -314,10 +333,13 @@ pipeline {
             }
             steps {
                 script {
-                    echo "========== AUTO PROMOTION: Dev → Stage =========="
-                    echo "✓ Dev deployment successful. Auto-triggering Stage deployment (no approval needed)..."
+                    echo "========== AUTO PROMOTION: Dev → Stage (on jenkins-agent2) =========="
+                    echo "✓ Dev deployment successful. Auto-triggering Stage deployment..."
+                    echo "ℹ️  Stage will run on jenkins-agent2 (offloaded from master)"
+                    echo "ℹ️  This allows Stage to start immediately without waiting for Dev cleanup"
                     
                     // Auto-trigger stage deployment without approval for fast iteration
+                    // Stage will automatically run on jenkins-agent2 due to agent selection logic
                     build job: 'terraform-jenkins', 
                         parameters: [
                             string(name: 'ENVIRONMENT', value: 'stage'),
