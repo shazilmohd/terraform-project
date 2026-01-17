@@ -128,9 +128,9 @@ pipeline {
                             echo "   Bucket: ${BACKEND_BUCKET}"
                             echo "   Table: ${DYNAMODB_TABLE}"
                             
-                            # Use eu-west-1 for backend bucket (where S3 bucket actually exists)
-                            # This is separate from resource provisioning region (ap-south-1)
-                            BUCKET_REGION="eu-west-1"  # S3 bucket location
+                            # Use ap-south-1 for backend bucket (where S3 bucket actually exists)
+                            # This is separate from resource provisioning region
+                            BUCKET_REGION="ap-south-1"  # S3 bucket location
                             
                             echo "   Backend Region: ${BUCKET_REGION}"
                             
