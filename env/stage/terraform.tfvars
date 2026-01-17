@@ -16,7 +16,7 @@ instance_count   = 2
 root_volume_size = 20
 
 # Secrets Manager Configuration
-secrets_manager_secret_name = "stage/terraform-env-vars"
+secrets_manager_secret_name = "terraform-env-vars"
 
 # Key pair name (from AWS EC2 Key Pairs) - leave empty to skip key setup
 # key_pair_name = "my-stage-keypair"
