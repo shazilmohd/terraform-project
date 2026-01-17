@@ -125,6 +125,9 @@ resource "aws_eks_node_group" "main" {
   # Use public subnets for simplicity (cost optimization)
   subnet_ids = var.subnet_ids
 
+  # Security groups for the nodes
+  vpc_security_group_ids = length(var.node_security_group_ids) > 0 ? var.node_security_group_ids : null
+
   scaling_config {
     desired_size = var.desired_size
     min_size     = var.min_size
