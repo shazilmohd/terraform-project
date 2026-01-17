@@ -352,14 +352,68 @@ pipeline {
             }
         }
 
-        stage('Promote to Prod (Exceptional - Manual Only)') {
+        stage('Promote to Prod (Manual Approval Required)') {
             when {
-                expression { false } // DISABLED - Prod is exceptional and must be triggered separately
+                expression { 
+                    params.ACTION.toLowerCase() == 'apply' && 
+                    params.ENVIRONMENT == 'stage' && 
+                    params.ENVIRONMENT != 'parallel-destroy-all'
+                }
             }
             steps {
                 script {
-                    echo "Production deployment disabled in automatic flow."
-                    echo "To deploy to PROD, trigger terraform-jenkins with: ENVIRONMENT=prod, ACTION=APPLY"
+                    echo "========== PROD PROMOTION REQUEST =========="
+                    echo "✓ Stage deployment successful"
+                    echo "⏳ Waiting for admin approval to deploy to PRODUCTION..."
+                    
+                    try {
+                        // Request manual approval from admin
+                        timeout(time: 24, unit: 'HOURS') {
+                            input(
+                                id: 'ProdApproval',
+                                message: '''
+╔══════════════════════════════════════════════════════════════╗
+║                  PRODUCTION DEPLOYMENT REQUEST               ║
+╚══════════════════════════════════════════════════════════════╝
+
+Stage deployment completed successfully.
+Ready to promote to PRODUCTION environment.
+
+⚠️  CAUTION: This will deploy to PRODUCTION environment
+    - All changes will be live and affect end users
+    - Ensure all testing is complete
+    - Verify all security and compliance requirements
+
+🔒 Admin Approval Required:
+    Proceed with Production deployment?
+                                ''',
+                                ok: 'APPROVE & DEPLOY TO PROD',
+                                submitter: '',
+                                submitterParameter: 'PROD_APPROVER'
+                            )
+                        }
+                        
+                        echo "========== PROD DEPLOYMENT APPROVED =========="
+                        echo "✅ Approved by: ${env.PROD_APPROVER}"
+                        echo "🚀 Triggering Production deployment..."
+                        
+                        // Trigger prod deployment without waiting
+                        build job: 'terraform-jenkins', 
+                            parameters: [
+                                string(name: 'ENVIRONMENT', value: 'prod'),
+                                string(name: 'ACTION', value: 'APPLY'),
+                                booleanParam(name: 'AUTO_APPROVE', value: true)
+                            ],
+                            wait: false
+                        
+                        echo "Production deployment triggered on master node"
+                        
+                    } catch (err) {
+                        echo "========== PROD DEPLOYMENT REJECTED =========="
+                        echo "❌ Production deployment was rejected or approval timeout (24 hours)"
+                        echo "ℹ️  Stage remains deployed. Prod deployment can be retried later."
+                        throw err
+                    }
                 }
             }
         }
