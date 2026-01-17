@@ -127,13 +127,22 @@ pipeline {
                             echo "   Bucket: ${BACKEND_BUCKET}"
                             echo "   Table: ${DYNAMODB_TABLE}"
                             
+                            # Detect the region where the S3 bucket actually exists
+                            BUCKET_REGION=$(aws s3api get-bucket-location --bucket ${BACKEND_BUCKET} --query 'LocationConstraint' --output text)
+                            if [ -z "${BUCKET_REGION}" ] || [ "${BUCKET_REGION}" == "None" ]; then
+                                BUCKET_REGION="us-east-1"  # us-east-1 returns null for LocationConstraint
+                            fi
+                            
+                            echo "   Detected Bucket Region: ${BUCKET_REGION}"
+                            
                             # Initialize Terraform with dynamic backend config
-                            # Note: Not specifying region to allow S3 to auto-detect bucket location
+                            # Includes the detected region to match bucket location
                             terraform init \
                                 -upgrade \
                                 -input=false \
                                 -backend-config="bucket=${BACKEND_BUCKET}" \
                                 -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
+                                -backend-config="region=${BUCKET_REGION}" \
                                 -backend-config="dynamodb_table=${DYNAMODB_TABLE}" \
                                 -backend-config="encrypt=true"
                         '''
