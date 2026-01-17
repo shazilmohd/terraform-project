@@ -142,12 +142,12 @@ module "web_server" {
   depends_on = [module.ec2_instance_role]
 }
 
-# Secrets Manager Module - Create with initial static values
-# Uses hardcoded defaults to avoid circular dependency with data source
+# Secrets Manager Module - Use existing secret
+# create_secret = false ensures we read the existing secret instead of trying to create it
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
-  create_secret = true
+  create_secret = false
   secret_name = var.secrets_manager_secret_name
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
