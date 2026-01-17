@@ -18,7 +18,7 @@ resource "aws_instance" "main" {
   tags = merge(
     var.tags,
     {
-      Name = "EC2-Instance-${count.index + 1}"
+      Name = var.environment != "" ? "${var.environment}-app-${format("%02d", count.index + 1)}" : "EC2-Instance-${count.index + 1}"
     }
   )
 }

@@ -133,6 +133,7 @@ module "web_server" {
   subnet_ids           = module.vpc.public_subnet_ids
   security_group_ids   = [module.web_security_group.security_group_id]
   instance_count       = var.instance_count
+  environment          = var.environment
   associate_public_ip  = true
   key_name             = var.key_pair_name != "" ? var.key_pair_name : null
   iam_instance_profile = module.ec2_instance_role.instance_profile_name

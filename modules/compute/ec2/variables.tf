@@ -4,6 +4,12 @@ variable "instance_count" {
   default     = 1
 }
 
+variable "environment" {
+  description = "Environment name (dev, stage, prod) for resource naming"
+  type        = string
+  default     = ""
+}
+
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
