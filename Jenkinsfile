@@ -127,13 +127,9 @@ pipeline {
                             echo "   Bucket: ${BACKEND_BUCKET}"
                             echo "   Table: ${DYNAMODB_TABLE}"
                             
-                            # Try to detect the region where the S3 bucket actually exists
-                            # If detection fails (e.g., no s3:GetBucketLocation permission), 
-                            # fall back to ap-south-1 as default
-                            BUCKET_REGION=$(aws s3api get-bucket-location --bucket ${BACKEND_BUCKET} --query 'LocationConstraint' --output text 2>/dev/null || true)
-                            if [ -z "${BUCKET_REGION}" ] || [ "${BUCKET_REGION}" == "None" ]; then
-                                BUCKET_REGION="ap-south-1"  # Default fallback region
-                            fi
+                            # Use eu-west-1 for backend bucket (where S3 bucket actually exists)
+                            # This is separate from resource provisioning region (ap-south-1)
+                            BUCKET_REGION="eu-west-1"  # S3 bucket location
                             
                             echo "   Backend Region: ${BUCKET_REGION}"
                             
