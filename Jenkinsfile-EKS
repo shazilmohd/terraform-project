@@ -949,7 +949,7 @@ EOF
                 if (params.VERIFY_EKS_CLUSTER && fileExists("${TF_WORKING_DIR}/terraform_outputs_*.json")) {
                     echo "✅ EKS cluster validation completed"
                     echo "📌 Use 'aws eks update-kubeconfig' command from deployment summary"
-                fi
+                }
             }
         }
 
