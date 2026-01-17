@@ -18,13 +18,21 @@ tfplan_*.txt
 # ==========================================
 # Environment-specific and sensitive variables
 # ==========================================
-terraform.tfvars
-terraform.tfvars.json
-env/*/terraform.tfvars
+# NOTE: terraform.tfvars files (env/*/terraform.tfvars) are SAFE to commit
+# They contain only non-sensitive configuration like instance types, CIDR blocks, etc.
+# Actual secrets are stored in AWS Secrets Manager, NOT in tfvars files
+
+# Block only sensitive patterns
+*.tfvars.json
 env/*/terraform.tfstate
-env/*/terraform.tfstate.*
+env/*/terraform.state.*
 env/**/.terraform/
 env/**/.terraform.lock.hcl
+
+# Allow terraform.tfvars files (configuration, not secrets)
+!env/*/terraform.tfvars
+
+# Example files
 !terraform.tfvars.example
 !**/terraform.tfvars.example
 
