@@ -142,7 +142,8 @@ module "web_server" {
   depends_on = [module.ec2_instance_role]
 }
 
-# Secrets Manager Module
+# Secrets Manager Module - Create with initial static values
+# Uses hardcoded defaults to avoid circular dependency with data source
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
@@ -151,9 +152,9 @@ module "app_secrets" {
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
   secret_string = jsonencode({
-    app_name      = local.app_name
-    app_version   = local.app_version
-    contact_email = local.contact_email
+    app_name      = "${var.environment}-app"
+    app_version   = "1.0.0"
+    contact_email = "ops@company.com"
   })
 
   tags = {

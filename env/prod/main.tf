@@ -1,4 +1,4 @@
-# Dev Environment - Main Configuration
+# Prod Environment - Main Configuration
 # All actual values should be fetched from AWS Secrets Manager or environment variables
 
 terraform {
@@ -18,7 +18,6 @@ provider "aws" {
 # Data source to fetch secrets from AWS Secrets Manager
 data "aws_secretsmanager_secret_version" "env_secrets" {
   secret_id = var.secrets_manager_secret_name
-  depends_on = [module.app_secrets]
 }
 
 locals {
@@ -78,7 +77,7 @@ module "web_security_group" {
       from_port   = 22
       to_port     = 22
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"] # Consider restricting in production
+      cidr_blocks = ["0.0.0.0/0"] # RESTRICT THIS in production to known IP ranges
       description = "SSH access"
     },
     {
@@ -119,16 +118,16 @@ module "ec2_instance_role" {
 module "web_server" {
   source = "../../modules/compute/ec2"
 
-  instance_type        = var.instance_type
-  ami_id               = data.aws_ami.ubuntu.id
-  subnet_ids           = module.vpc.public_subnet_ids
-  security_group_ids   = [module.web_security_group.security_group_id]
-  instance_count       = var.instance_count
-  associate_public_ip  = true
-  key_name             = var.key_pair_name != "" ? var.key_pair_name : null
+  instance_type       = var.instance_type
+  ami_id              = data.aws_ami.ubuntu.id
+  subnet_ids          = module.vpc.public_subnet_ids
+  security_group_ids  = [module.web_security_group.security_group_id]
+  instance_count      = var.instance_count
+  associate_public_ip = true
+  key_name            = var.key_pair_name != "" ? var.key_pair_name : null
   iam_instance_profile = module.ec2_instance_role.instance_profile_name
-  user_data            = base64encode(templatefile("${path.module}/../../scripts/install_apache2.sh", { environment = var.environment }))
-  root_volume_size     = var.root_volume_size
+  user_data           = base64encode(templatefile("${path.module}/../../scripts/install_apache2.sh", { environment = var.environment }))
+  root_volume_size    = var.root_volume_size
 
   tags = {
     Environment    = var.environment
@@ -142,25 +141,17 @@ module "web_server" {
   depends_on = [module.ec2_instance_role]
 }
 
-# Secrets Manager Module - Create with initial static values
-# Uses hardcoded defaults to avoid circular dependency with data source
+# Secrets Manager Module
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
-  create_secret = true
-  secret_name = var.secrets_manager_secret_name
+  create_secret = false
+  secret_name = "${var.environment}-app-secrets-v1"
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
-  secret_string = jsonencode({
-    app_name      = "${var.environment}-app"
-    app_version   = "1.0.0"
-    contact_email = "ops@company.com"
-  })
 
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-app-secrets-v1"
   }
-
-  depends_on = []
 }
