@@ -93,14 +93,15 @@ pipeline {
                         error("❌ Invalid ENVIRONMENT: ${params.ENVIRONMENT}. Must be one of: ${validEnvironments.join(', ')}")
                     }
                     
-                    // Validate ACTION parameter
+                    // Validate ACTION parameter (convert to lowercase for comparison)
                     def validActions = ['plan', 'apply', 'destroy']
-                    if (!validActions.contains(params.ACTION)) {
+                    def actionLower = params.ACTION.toLowerCase()
+                    if (!validActions.contains(actionLower)) {
                         error("❌ Invalid ACTION: ${params.ACTION}. Must be one of: ${validActions.join(', ')}")
                     }
                     
                     // CRITICAL: Block destroy on production
-                    if (params.ENVIRONMENT == 'prod' && params.ACTION == 'destroy') {
+                    if (params.ENVIRONMENT == 'prod' && actionLower == 'destroy') {
                         error("❌ DESTROY is not permitted on PROD environment. Contact senior team for manual intervention.")
                     }
                     
@@ -208,7 +209,7 @@ pipeline {
 
         stage('Review Plan') {
             when {
-                expression { params.ACTION == 'APPLY' }
+                expression { params.ACTION.toLowerCase() == 'apply' }
             }
             steps {
                 script {
@@ -261,7 +262,7 @@ pipeline {
 
         stage('Terraform Apply') {
             when {
-                expression { params.ACTION == 'APPLY' }
+                expression { params.ACTION.toLowerCase() == 'apply' }
             }
             steps {
                 script {
@@ -283,7 +284,7 @@ pipeline {
 
         stage('Terraform Destroy') {
             when {
-                expression { params.ACTION == 'DESTROY' }
+                expression { params.ACTION.toLowerCase() == 'destroy' }
             }
             steps {
                 script {
@@ -339,7 +340,7 @@ pipeline {
 
         stage('Output Artifacts') {
             when {
-                expression { params.ACTION == 'APPLY' }
+                expression { params.ACTION.toLowerCase() == 'apply' }
             }
             steps {
                 script {
@@ -437,7 +438,7 @@ EOF
 
         stage('State Backup') {
             when {
-                expression { params.ACTION == 'APPLY' }
+                expression { params.ACTION.toLowerCase() == 'apply' }
             }
             steps {
                 script {
