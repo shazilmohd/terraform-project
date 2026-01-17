@@ -122,20 +122,18 @@ pipeline {
                             # Determine backend bucket and DynamoDB table names
                             BACKEND_BUCKET="terraform-state-${ENVIRONMENT}"
                             DYNAMODB_TABLE="terraform-locks"
-                            AWS_REGION="ap-south-1"
                             
                             echo "🔧 Backend Configuration:"
                             echo "   Bucket: ${BACKEND_BUCKET}"
                             echo "   Table: ${DYNAMODB_TABLE}"
-                            echo "   Region: ${AWS_REGION}"
                             
                             # Initialize Terraform with dynamic backend config
+                            # Note: Not specifying region to allow S3 to auto-detect bucket location
                             terraform init \
                                 -upgrade \
                                 -input=false \
                                 -backend-config="bucket=${BACKEND_BUCKET}" \
                                 -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
-                                -backend-config="region=${AWS_REGION}" \
                                 -backend-config="dynamodb_table=${DYNAMODB_TABLE}" \
                                 -backend-config="encrypt=true"
                         '''
