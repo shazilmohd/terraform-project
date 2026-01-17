@@ -434,6 +434,16 @@ pipeline {
                         'Destroy Dev': {
                             dir("env/dev") {
                                 sh '''
+                                    # Initialize backend for dev
+                                    terraform init \
+                                        -input=false \
+                                        -backend-config="bucket=terraform-state-1768505102" \
+                                        -backend-config="key=dev/terraform.tfstate" \
+                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="dynamodb_table=terraform-locks" \
+                                        -backend-config="encrypt=true"
+                                    
+                                    # Destroy dev infrastructure
                                     terraform destroy \
                                         -auto-approve \
                                         -input=false
@@ -444,6 +454,16 @@ pipeline {
                         'Destroy Stage': {
                             dir("env/stage") {
                                 sh '''
+                                    # Initialize backend for stage
+                                    terraform init \
+                                        -input=false \
+                                        -backend-config="bucket=terraform-state-1768505102" \
+                                        -backend-config="key=stage/terraform.tfstate" \
+                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="dynamodb_table=terraform-locks" \
+                                        -backend-config="encrypt=true"
+                                    
+                                    # Destroy stage infrastructure
                                     terraform destroy \
                                         -auto-approve \
                                         -input=false
@@ -454,6 +474,16 @@ pipeline {
                         'Destroy Prod': {
                             dir("env/prod") {
                                 sh '''
+                                    # Initialize backend for prod
+                                    terraform init \
+                                        -input=false \
+                                        -backend-config="bucket=terraform-state-1768505102" \
+                                        -backend-config="key=prod/terraform.tfstate" \
+                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="dynamodb_table=terraform-locks" \
+                                        -backend-config="encrypt=true"
+                                    
+                                    # Destroy prod infrastructure
                                     terraform destroy \
                                         -auto-approve \
                                         -input=false
