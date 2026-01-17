@@ -4,8 +4,8 @@ pipeline {
     parameters {
         choice(
             name: 'ENVIRONMENT',
-            choices: ['dev', 'stage', 'prod'],
-            description: 'Environment to deploy to'
+            choices: ['dev', 'stage', 'prod', 'parallel-destroy'],
+            description: 'Environment to deploy to (use parallel-destroy for dev+stage destruction)'
         )
         
         choice(
@@ -378,6 +378,65 @@ pipeline {
                             echo "========== Terraform Destroy Completed =========="
                         '''
                     }
+                }
+            }
+        }
+
+        stage('Parallel Destroy - Dev & Stage') {
+            when {
+                expression { 
+                    params.ACTION.toLowerCase() == 'destroy' && 
+                    params.ENVIRONMENT == 'parallel-destroy'
+                }
+            }
+            steps {
+                script {
+                    echo "========== PARALLEL DESTROY: Dev & Stage =========="
+                    
+                    timeout(time: 15, unit: 'MINUTES') {
+                        input message: '''
+                        
+                        ⚠️  CRITICAL: PARALLEL TERRAFORM DESTROY ⚠️
+                        
+                        This will DELETE all infrastructure in DEV and STAGE environments:
+                        - EC2 Instances (both environments)
+                        - VPC and Subnets (both environments)
+                        - Security Groups (both environments)
+                        - Secrets Manager entries (both environments)
+                        
+                        This action CANNOT be undone.
+                        Environments will be destroyed in PARALLEL for speed.
+                        
+                        Type "DESTROY" to confirm:
+                        ''',
+                        ok: 'CONFIRM PARALLEL DESTROY'
+                    }
+                    
+                    // Parallel destroy for dev and stage
+                    parallel(
+                        'Destroy Dev': {
+                            dir("env/dev") {
+                                sh '''
+                                    terraform destroy \
+                                        -auto-approve \
+                                        -input=false
+                                    echo "========== Dev Destroy Completed =========="
+                                '''
+                            }
+                        },
+                        'Destroy Stage': {
+                            dir("env/stage") {
+                                sh '''
+                                    terraform destroy \
+                                        -auto-approve \
+                                        -input=false
+                                    echo "========== Stage Destroy Completed =========="
+                                '''
+                            }
+                        }
+                    )
+                    
+                    echo "✓ Dev and Stage destroyed in parallel successfully"
                 }
             }
         }
