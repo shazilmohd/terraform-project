@@ -59,6 +59,7 @@ module "vpc" {
   vpc_cidr             = var.vpc_cidr
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
+  environment          = var.environment
 
   tags = {
     Environment = var.environment
@@ -75,6 +76,7 @@ module "web_security_group" {
 
   vpc_id              = module.vpc.vpc_id
   security_group_name = "${var.environment}-web-sg"
+  environment         = var.environment
 
   ingress_rules = [
     {
@@ -162,6 +164,7 @@ module "app_secrets" {
 
   create_secret = false
   secret_name = var.secrets_manager_secret_name
+  environment = var.environment
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
   secret_string = jsonencode({

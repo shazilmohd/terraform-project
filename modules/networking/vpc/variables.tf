@@ -1,3 +1,9 @@
+variable "environment" {
+  description = "Environment name (dev, stage, prod) for resource naming"
+  type        = string
+  default     = ""
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string

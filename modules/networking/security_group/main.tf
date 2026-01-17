@@ -5,7 +5,7 @@ resource "aws_security_group" "main" {
   tags = merge(
     var.tags,
     {
-      Name = var.security_group_name
+      Name = var.environment != "" ? "${var.environment}-${var.security_group_name}" : var.security_group_name
     }
   )
 }
@@ -22,7 +22,7 @@ resource "aws_vpc_security_group_ingress_rule" "main" {
   description = var.ingress_rules[count.index].description
 
   tags = {
-    Name = "ingress-rule-${count.index + 1}"
+    Name = var.environment != "" ? "${var.environment}-ingress-rule-${count.index + 1}" : "ingress-rule-${count.index + 1}"
   }
 }
 
@@ -38,6 +38,6 @@ resource "aws_vpc_security_group_egress_rule" "main" {
   description = var.egress_rules[count.index].description
 
   tags = {
-    Name = "egress-rule-${count.index + 1}"
+    Name = var.environment != "" ? "${var.environment}-egress-rule-${count.index + 1}" : "egress-rule-${count.index + 1}"
   }
 }

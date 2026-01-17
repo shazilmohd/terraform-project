@@ -1,3 +1,15 @@
+variable "environment" {
+  description = "Environment name (dev, stage, prod) for resource naming"
+  type        = string
+  default     = ""
+}
+
+variable "environment" {
+  description = "Environment name (dev, stage, prod) for resource naming"
+  type        = string
+  default     = ""
+}
+
 variable "create_secret" {
   description = "Whether to create the Secrets Manager secret"
   type        = bool

@@ -1,10 +1,15 @@
 resource "aws_secretsmanager_secret" "main" {
   count                   = var.create_secret ? 1 : 0
-  name                    = var.secret_name
+  name                    = var.environment != "" ? "${var.environment}/${var.secret_name}" : var.secret_name
   description             = var.description
   recovery_window_in_days = var.recovery_window_in_days
 
-  tags = var.tags
+  tags = merge(
+    var.tags,
+    {
+      Name = var.environment != "" ? "${var.environment}-${var.secret_name}" : var.secret_name
+    }
+  )
 }
 
 resource "aws_secretsmanager_secret_version" "main" {

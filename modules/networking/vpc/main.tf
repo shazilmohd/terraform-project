@@ -6,7 +6,7 @@ resource "aws_vpc" "main" {
   tags = merge(
     var.tags,
     {
-      Name = "VPC"
+      Name = var.environment != "" ? "${var.environment}-vpc" : "VPC"
     }
   )
 }
@@ -20,7 +20,7 @@ resource "aws_subnet" "public" {
   tags = merge(
     var.tags,
     {
-      Name = "Public Subnet ${count.index + 1}"
+      Name = var.environment != "" ? "${var.environment}-public-subnet-${count.index + 1}" : "Public Subnet ${count.index + 1}"
     }
   )
 }
@@ -34,7 +34,7 @@ resource "aws_subnet" "private" {
   tags = merge(
     var.tags,
     {
-      Name = "Private Subnet ${count.index + 1}"
+      Name = var.environment != "" ? "${var.environment}-private-subnet-${count.index + 1}" : "Private Subnet ${count.index + 1}"
     }
   )
 }
@@ -45,7 +45,7 @@ resource "aws_internet_gateway" "main" {
   tags = merge(
     var.tags,
     {
-      Name = "Internet Gateway"
+      Name = var.environment != "" ? "${var.environment}-igw" : "Internet Gateway"
     }
   )
 }
@@ -61,7 +61,7 @@ resource "aws_route_table" "public" {
   tags = merge(
     var.tags,
     {
-      Name = "Public Route Table"
+      Name = var.environment != "" ? "${var.environment}-public-rt" : "Public Route Table"
     }
   )
 }
