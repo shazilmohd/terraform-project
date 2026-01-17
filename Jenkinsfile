@@ -117,6 +117,9 @@ pipeline {
         }
 
         stage('Terraform Init') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
             steps {
                 script {
                     echo "========== Initializing Terraform with dynamic backend config =========="
@@ -155,6 +158,9 @@ pipeline {
         }
 
         stage('Terraform Validate') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
             steps {
                 script {
                     echo "========== Validating Terraform configuration =========="
@@ -169,6 +175,9 @@ pipeline {
         }
 
         stage('Terraform Format Check') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
             steps {
                 script {
                     echo "========== Checking Terraform format =========="
@@ -194,6 +203,9 @@ pipeline {
         }
 
         stage('Terraform Plan') {
+            when {
+                expression { params.ENVIRONMENT != 'parallel-destroy-all' }
+            }
             steps {
                 script {
                     echo "========== Creating Terraform plan =========="
@@ -219,7 +231,7 @@ pipeline {
 
         stage('Review Plan') {
             when {
-                expression { params.ACTION.toLowerCase() == 'apply' }
+                expression { params.ACTION.toLowerCase() == 'apply' && params.ENVIRONMENT != 'parallel-destroy-all' }
             }
             steps {
                 script {
@@ -238,7 +250,7 @@ pipeline {
         stage('Approval') {
             when {
                 expression { 
-                    params.ACTION == 'APPLY' && !params.AUTO_APPROVE 
+                    params.ACTION == 'APPLY' && !params.AUTO_APPROVE && params.ENVIRONMENT != 'parallel-destroy-all'
                 }
             }
             steps {
@@ -272,7 +284,7 @@ pipeline {
 
         stage('Terraform Apply') {
             when {
-                expression { params.ACTION.toLowerCase() == 'apply' }
+                expression { params.ACTION.toLowerCase() == 'apply' && params.ENVIRONMENT != 'parallel-destroy-all' }
             }
             steps {
                 script {
@@ -296,7 +308,8 @@ pipeline {
             when {
                 expression { 
                     params.ACTION.toLowerCase() == 'apply' && 
-                    params.ENVIRONMENT == 'dev' 
+                    params.ENVIRONMENT == 'dev' && 
+                    params.ENVIRONMENT != 'parallel-destroy-all'
                 }
             }
             steps {
@@ -332,7 +345,7 @@ pipeline {
 
         stage('Terraform Destroy') {
             when {
-                expression { params.ACTION.toLowerCase() == 'destroy' }
+                expression { params.ACTION.toLowerCase() == 'destroy' && params.ENVIRONMENT != 'parallel-destroy-all' }
             }
             steps {
                 script {
