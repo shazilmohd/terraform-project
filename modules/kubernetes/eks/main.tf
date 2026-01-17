@@ -135,7 +135,7 @@ resource "aws_eks_node_group" "main" {
   disk_size      = var.disk_size
 
   # Security groups
-  security_groups = length(var.node_security_group_ids) > 0 ? var.node_security_group_ids : null
+  vpc_security_group_ids = length(var.node_security_group_ids) > 0 ? var.node_security_group_ids : null
 
   # Tags for the nodes
   tags = merge(
