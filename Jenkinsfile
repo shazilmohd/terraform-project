@@ -120,7 +120,8 @@ pipeline {
                     dir("${TF_WORKING_DIR}") {
                         sh '''
                             # Determine backend bucket and DynamoDB table names
-                            BACKEND_BUCKET="terraform-state-${ENVIRONMENT}"
+                            # Note: Using actual bucket name terraform-state-1768505102
+                            BACKEND_BUCKET="terraform-state-1768505102"
                             DYNAMODB_TABLE="terraform-locks"
                             
                             echo "🔧 Backend Configuration:"
