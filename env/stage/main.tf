@@ -142,8 +142,8 @@ module "web_server" {
   depends_on = [module.ec2_instance_role]
 }
 
-# Secrets Manager Module - Create secret fresh for stage
-# Unlike dev, stage needs fresh secret creation (clean environment setup)
+# Secrets Manager Module - Create fresh secret for stage
+# create_secret = true ensures each environment has its own independent secret
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 

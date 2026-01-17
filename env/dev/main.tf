@@ -142,7 +142,7 @@ module "web_server" {
   depends_on = [module.ec2_instance_role]
 }
 
-# Secrets Manager Module - Use existing secret
+# Secrets Manager Module - Keep existing secret (dev is stable)
 # create_secret = false ensures we read the existing secret instead of trying to create it
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"

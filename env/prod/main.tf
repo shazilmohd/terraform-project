@@ -141,17 +141,24 @@ module "web_server" {
   depends_on = [module.ec2_instance_role]
 }
 
-# Secrets Manager Module
+# Secrets Manager Module - Create secret for prod
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
-  create_secret = false
-  secret_name = "${var.environment}-app-secrets-v1"
+  create_secret = true
+  secret_name = var.secrets_manager_secret_name
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
+  secret_string = jsonencode({
+    app_name      = "${var.environment}-app"
+    app_version   = "1.0.0"
+    contact_email = "ops@company.com"
+  })
 
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-app-secrets-v1"
   }
+
+  depends_on = []
 }
