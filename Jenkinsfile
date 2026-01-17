@@ -36,7 +36,7 @@ pipeline {
     environment {
         // Dynamic paths based on parameters
         TF_WORKING_DIR = "env/${params.ENVIRONMENT}"
-        AWS_REGION = "${params.AWS_REGION}"
+        // AWS_REGION removed - let AWS SDK auto-detect S3 bucket region
         TF_LOG = 'INFO'
         
         // Build Information
