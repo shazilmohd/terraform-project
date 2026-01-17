@@ -297,61 +297,31 @@ pipeline {
             }
             steps {
                 script {
-                    echo "========== Promotion Gate: Dev → Stage =========="
+                    echo "========== AUTO PROMOTION: Dev → Stage =========="
+                    echo "✓ Dev deployment successful. Auto-triggering Stage deployment (no approval needed)..."
                     
-                    timeout(time: 30, unit: 'MINUTES') {
-                        input message: 'PROMOTION REQUEST: Dev deployment successful. Approve Stage deployment?', 
-                              ok: 'APPROVE STAGE DEPLOYMENT'
-                    }
-                    
-                    echo "✓ Promotion approved. Triggering Stage deployment..."
-                    
-                    // Trigger stage deployment
+                    // Auto-trigger stage deployment without approval for fast iteration
                     build job: 'terraform-jenkins', 
                         parameters: [
                             string(name: 'ENVIRONMENT', value: 'stage'),
                             string(name: 'ACTION', value: 'APPLY'),
-                            booleanParam(name: 'AUTO_APPROVE', value: false)
+                            booleanParam(name: 'AUTO_APPROVE', value: true)
                         ],
                         wait: true
                     
-                    echo "Stage deployment pipeline triggered successfully"
+                    echo "Stage deployment completed successfully"
                 }
             }
         }
 
-        stage('Promote to Prod (Optional)') {
+        stage('Promote to Prod (Exceptional - Manual Only)') {
             when {
-                expression { 
-                    params.ACTION.toLowerCase() == 'apply' && 
-                    params.ENVIRONMENT == 'stage' 
-                }
+                expression { false } // DISABLED - Prod is exceptional and must be triggered separately
             }
             steps {
                 script {
-                    echo "========== Optional Promotion: Stage → Prod =========="
-                    
-                    timeout(time: 30, unit: 'MINUTES') {
-                        try {
-                            input message: 'OPTIONAL: Stage deployment successful. Approve Production deployment? (Requires senior team approval)', 
-                                  ok: 'DEPLOY TO PRODUCTION',
-                                  submitter: 'devops-lead,platform-engineer'
-                            
-                            echo "✓ Production promotion approved. Triggering Prod deployment..."
-                            
-                            build job: 'terraform-jenkins', 
-                                parameters: [
-                                    string(name: 'ENVIRONMENT', value: 'prod'),
-                                    string(name: 'ACTION', value: 'APPLY'),
-                                    booleanParam(name: 'AUTO_APPROVE', value: false)
-                                ],
-                                wait: true
-                            
-                            echo "Production deployment pipeline triggered successfully"
-                        } catch (err) {
-                            echo "ⓘ Production deployment skipped or rejected. Stage environment ready for testing."
-                        }
-                    }
+                    echo "Production deployment disabled in automatic flow."
+                    echo "To deploy to PROD, trigger terraform-jenkins with: ENVIRONMENT=prod, ACTION=APPLY"
                 }
             }
         }
