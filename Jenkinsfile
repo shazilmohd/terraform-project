@@ -337,15 +337,17 @@ pipeline {
                     
                     // Auto-trigger stage deployment without approval for fast iteration
                     // Stage will automatically run on jenkins-agent2 due to agent selection logic
+                    // CRITICAL: wait: false allows dev job to finish immediately after triggering stage
+                    // Stage runs in parallel on jenkins-agent2 (not blocking dev job)
                     build job: 'terraform-jenkins', 
                         parameters: [
                             string(name: 'ENVIRONMENT', value: 'stage'),
                             string(name: 'ACTION', value: 'APPLY'),
                             booleanParam(name: 'AUTO_APPROVE', value: true)
                         ],
-                        wait: true
+                        wait: false
                     
-                    echo "Stage deployment completed successfully"
+                    echo "Stage deployment triggered and running in parallel on jenkins-agent2"
                 }
             }
         }
