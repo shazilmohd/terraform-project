@@ -21,6 +21,10 @@ tfplan_*.txt
 terraform.tfvars
 terraform.tfvars.json
 env/*/terraform.tfvars
+env/*/terraform.tfstate
+env/*/terraform.tfstate.*
+env/**/.terraform/
+env/**/.terraform.lock.hcl
 !terraform.tfvars.example
 !**/terraform.tfvars.example
 
@@ -130,9 +134,9 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-env/
 venv/
 ENV/
+.venv/
 
 # ==========================================
 # Crash and debug files

@@ -18,6 +18,7 @@ provider "aws" {
 # Data source to fetch secrets from AWS Secrets Manager
 data "aws_secretsmanager_secret_version" "env_secrets" {
   secret_id = var.secrets_manager_secret_name
+  depends_on = [module.app_secrets]
 }
 
 locals {
@@ -145,13 +146,20 @@ module "web_server" {
 module "app_secrets" {
   source = "../../modules/secrets/secret_manager"
 
-  create_secret = false
-  secret_name = "${var.environment}-app-secrets-v1"
+  create_secret = true
+  secret_name = var.secrets_manager_secret_name
   description = "Application secrets for ${var.environment} environment"
   recovery_window_in_days = 0
+  secret_string = jsonencode({
+    app_name      = local.app_name
+    app_version   = local.app_version
+    contact_email = local.contact_email
+  })
 
   tags = {
     Environment = var.environment
     Name        = "${var.environment}-app-secrets-v1"
   }
+
+  depends_on = []
 }
