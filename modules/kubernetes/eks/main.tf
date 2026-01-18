@@ -196,7 +196,7 @@ resource "aws_eks_node_group" "main" {
     for_each = length(var.node_security_group_ids) > 0 ? [1] : []
     content {
       id      = aws_launch_template.eks_nodes[0].id
-      version = aws_launch_template.eks_nodes[0].latest_version_number
+      version = aws_launch_template.eks_nodes[0].latest_version
     }
   }
 
