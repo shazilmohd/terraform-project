@@ -114,6 +114,63 @@ resource "aws_eks_cluster" "main" {
 }
 
 # ============================================================================
+# EKS Node Launch Template (for security group configuration)
+# ============================================================================
+
+resource "aws_launch_template" "eks_nodes" {
+  count = length(var.node_security_group_ids) > 0 ? 1 : 0
+
+  name_prefix   = "${var.cluster_name}-node-lt-"
+  image_id      = data.aws_ami.eks_worker.id
+  instance_type = var.node_instance_type
+
+  vpc_security_group_ids = var.node_security_group_ids
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size           = var.disk_size
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = merge(
+      var.tags,
+      {
+        Name = "${var.cluster_name}-node"
+      }
+    )
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+
+    tags = merge(
+      var.tags,
+      {
+        Name = "${var.cluster_name}-node-volume"
+      }
+    )
+  }
+}
+
+# Data source to get the latest EKS-optimized AMI
+data "aws_ami" "eks_worker" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amazon-eks-node-${var.cluster_version}-v*"]
+  }
+}
+
+# ============================================================================
 # EKS Managed Node Group
 # ============================================================================
 
@@ -125,9 +182,6 @@ resource "aws_eks_node_group" "main" {
   # Use public subnets for simplicity (cost optimization)
   subnet_ids = var.subnet_ids
 
-  # Security groups for the nodes
-  vpc_security_group_ids = length(var.node_security_group_ids) > 0 ? var.node_security_group_ids : null
-
   scaling_config {
     desired_size = var.desired_size
     min_size     = var.min_size
@@ -136,6 +190,15 @@ resource "aws_eks_node_group" "main" {
 
   instance_types = [var.node_instance_type]
   disk_size      = var.disk_size
+
+  # Use launch template if security groups are provided
+  dynamic "launch_template" {
+    for_each = length(var.node_security_group_ids) > 0 ? [1] : []
+    content {
+      id      = aws_launch_template.eks_nodes[0].id
+      version = aws_launch_template.eks_nodes[0].latest_version_number
+    }
+  }
 
   # Tags for the nodes
   tags = merge(
