@@ -15,14 +15,15 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Data source to fetch secrets from AWS Secrets Manager
+# Data source to fetch secrets from AWS Secrets Manager (optional - uses defaults if not found)
 data "aws_secretsmanager_secret_version" "env_secrets" {
+  count     = try(module.app_secrets[0].secret_arn != null, false) ? 1 : 0
   secret_id = "${var.environment}/${var.secrets_manager_secret_name}"
   depends_on = [module.app_secrets]
 }
 
 locals {
-  secrets = jsondecode(data.aws_secretsmanager_secret_version.env_secrets.secret_string)
+  secrets = try(jsondecode(data.aws_secretsmanager_secret_version.env_secrets[0].secret_string), {})
   
   # Consume secrets for EC2 configuration
   # Expected structure in Secrets Manager:
