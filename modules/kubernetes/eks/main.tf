@@ -189,7 +189,9 @@ resource "aws_eks_node_group" "main" {
   }
 
   instance_types = [var.node_instance_type]
-  disk_size      = var.disk_size
+  
+  # disk_size must be specified in launch_template, not here when using launch_template
+  disk_size = length(var.node_security_group_ids) > 0 ? null : var.disk_size
 
   # Use launch template if security groups are provided
   dynamic "launch_template" {
