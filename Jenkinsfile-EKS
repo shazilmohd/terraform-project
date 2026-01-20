@@ -81,6 +81,24 @@ pipeline {
     }
 
     stages {
+        stage('Checkout Latest Code') {
+            steps {
+                script {
+                    echo "========== Fetching latest code from repository =========="
+                    sh '''
+                        # Ensure we're on master branch
+                        git fetch origin master
+                        git checkout master
+                        git reset --hard origin/master
+                        
+                        echo "✓ Checked out latest master branch"
+                        echo "Current commit:"
+                        git log -1 --oneline
+                    '''
+                }
+            }
+        }
+
         stage('Pre-Validation') {
             steps {
                 script {
