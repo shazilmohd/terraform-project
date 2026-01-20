@@ -103,9 +103,6 @@ resource "aws_eks_cluster" "main" {
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy,
     aws_iam_role_policy_attachment.eks_vpc_resource_controller,
-    # CRITICAL: Node group must be destroyed BEFORE cluster
-    # AWS EKS API returns 409 conflict if cluster has attached node groups
-    aws_eks_node_group.main,
   ]
 
   tags = merge(
