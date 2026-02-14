@@ -2,7 +2,7 @@
 # This file should be added to .gitignore or use environment variables instead
 # For git-safe approach, use: terraform -var-file="terraform.tfvars" or export TF_VAR_* env vars
 
-aws_region  = "ap-south-1"
+aws_region  = "us-east-1"
 environment = "prod"
 
 # VPC Configuration - UNIQUE CIDR for prod (10.2.0.0/16)

@@ -38,7 +38,7 @@ pipeline {
         
         string(
             name: 'AWS_REGION',
-            defaultValue: 'ap-south-1',
+            defaultValue: 'us-east-1',
             description: 'AWS region for deployment'
         )
         
