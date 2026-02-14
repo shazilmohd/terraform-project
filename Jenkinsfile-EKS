@@ -43,7 +43,7 @@ pipeline {
         
         string(
             name: 'AWS_REGION',
-            defaultValue: 'ap-south-1',
+            defaultValue: 'us-east-1',
             description: 'AWS region for deployment'
         )
         
@@ -185,7 +185,7 @@ pipeline {
                             # Determine backend bucket and DynamoDB table names
                             BACKEND_BUCKET="terraform-state-400694392622"
                             DYNAMODB_TABLE="terraform-locks"
-                            BUCKET_REGION="ap-south-1"
+                            BUCKET_REGION="us-east-1"
                             
                             echo "🔧 Backend Configuration:"
                             echo "   Bucket: ${BACKEND_BUCKET}"
@@ -741,7 +741,7 @@ Ready to promote to PRODUCTION environment.
                                         -input=false \
                                         -backend-config="bucket=terraform-state-400694392622" \
                                         -backend-config="key=dev/terraform.tfstate" \
-                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
                                         -backend-config="encrypt=true"
                                     
@@ -761,7 +761,7 @@ Ready to promote to PRODUCTION environment.
                                         -input=false \
                                         -backend-config="bucket=terraform-state-400694392622" \
                                         -backend-config="key=stage/terraform.tfstate" \
-                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
                                         -backend-config="encrypt=true"
                                     
@@ -781,7 +781,7 @@ Ready to promote to PRODUCTION environment.
                                         -input=false \
                                         -backend-config="bucket=terraform-state-400694392622" \
                                         -backend-config="key=prod/terraform.tfstate" \
-                                        -backend-config="region=ap-south-1" \
+                                        -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
                                         -backend-config="encrypt=true"
                                     
