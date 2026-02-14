@@ -183,7 +183,7 @@ pipeline {
                     dir("${TF_WORKING_DIR}") {
                         sh '''
                             # Determine backend bucket and DynamoDB table names
-                            BACKEND_BUCKET="terraform-state-400694392622"
+                            BACKEND_BUCKET="terraform-state-us-east-1-400694392622"
                             DYNAMODB_TABLE="terraform-locks"
                             BUCKET_REGION="us-east-1"
                             
@@ -739,7 +739,7 @@ Ready to promote to PRODUCTION environment.
                                     # Initialize backend for dev
                                     terraform init \
                                         -input=false \
-                                        -backend-config="bucket=terraform-state-400694392622" \
+                                        -backend-config="bucket=terraform-state-us-east-1-400694392622" \
                                         -backend-config="key=dev/terraform.tfstate" \
                                         -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
@@ -759,7 +759,7 @@ Ready to promote to PRODUCTION environment.
                                     # Initialize backend for stage
                                     terraform init \
                                         -input=false \
-                                        -backend-config="bucket=terraform-state-400694392622" \
+                                        -backend-config="bucket=terraform-state-us-east-1-400694392622" \
                                         -backend-config="key=stage/terraform.tfstate" \
                                         -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
@@ -779,7 +779,7 @@ Ready to promote to PRODUCTION environment.
                                     # Initialize backend for prod
                                     terraform init \
                                         -input=false \
-                                        -backend-config="bucket=terraform-state-400694392622" \
+                                        -backend-config="bucket=terraform-state-us-east-1-400694392622" \
                                         -backend-config="key=prod/terraform.tfstate" \
                                         -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
