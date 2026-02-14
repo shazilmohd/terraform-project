@@ -685,6 +685,14 @@ Ready to promote to PRODUCTION environment.
                     
                     dir("${TF_WORKING_DIR}") {
                         sh '''
+                            # First, destroy node groups explicitly (they must be deleted before cluster)
+                            echo "Destroying EKS node groups..."
+                            terraform destroy -target=module.eks_cluster.aws_eks_node_group.main -auto-approve -input=false || true
+                            
+                            # Wait for node group deletion to complete
+                            sleep 30
+                            
+                            # Destroy remaining infrastructure
                             terraform destroy \
                                 -auto-approve \
                                 -input=false
@@ -745,6 +753,13 @@ Ready to promote to PRODUCTION environment.
                                         -backend-config="dynamodb_table=terraform-locks" \
                                         -backend-config="encrypt=true"
                                     
+                                    # First, destroy node groups explicitly (they must be deleted before cluster)
+                                    echo "Destroying EKS node groups from Dev..."
+                                    terraform destroy -target=module.eks_cluster.aws_eks_node_group.main -auto-approve -input=false || true
+                                    
+                                    # Wait for node group deletion
+                                    sleep 20
+                                    
                                     # Destroy dev infrastructure
                                     terraform destroy \
                                         -auto-approve \
@@ -765,6 +780,13 @@ Ready to promote to PRODUCTION environment.
                                         -backend-config="dynamodb_table=terraform-locks" \
                                         -backend-config="encrypt=true"
                                     
+                                    # First, destroy node groups explicitly (they must be deleted before cluster)
+                                    echo "Destroying EKS node groups from Stage..."
+                                    terraform destroy -target=module.eks_cluster.aws_eks_node_group.main -auto-approve -input=false || true
+                                    
+                                    # Wait for node group deletion
+                                    sleep 20
+                                    
                                     # Destroy stage infrastructure
                                     terraform destroy \
                                         -auto-approve \
@@ -784,6 +806,13 @@ Ready to promote to PRODUCTION environment.
                                         -backend-config="region=us-east-1" \
                                         -backend-config="dynamodb_table=terraform-locks" \
                                         -backend-config="encrypt=true"
+                                    
+                                    # First, destroy node groups explicitly (they must be deleted before cluster)
+                                    echo "Destroying EKS node groups from Prod..."
+                                    terraform destroy -target=module.eks_cluster.aws_eks_node_group.main -auto-approve -input=false || true
+                                    
+                                    # Wait for node group deletion
+                                    sleep 20
                                     
                                     # Destroy prod infrastructure
                                     terraform destroy \

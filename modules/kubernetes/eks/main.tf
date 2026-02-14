@@ -188,6 +188,11 @@ resource "aws_eks_node_group" "main" {
     max_size     = var.max_size
   }
 
+  # Ensure node group is deleted before cluster during destroy
+  lifecycle {
+    create_before_destroy = false
+  }
+
   # instance_types and disk_size must be specified in launch_template, not here when using launch_template
   instance_types = length(var.node_security_group_ids) > 0 ? null : [var.node_instance_type]
   disk_size      = length(var.node_security_group_ids) > 0 ? null : var.disk_size
