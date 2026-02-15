@@ -23,7 +23,8 @@ secrets_manager_secret_name = "terraform-env-vars"
 
 # EKS Configuration (Optional)
 # Set enable_eks = true to provision an EKS cluster
-enable_eks               = true
+# DISABLED: Waiting for AWS quota approval (On-Demand instances: Need 5, Have 1)
+enable_eks               = false
 eks_cluster_name         = "dev-eks"
 eks_cluster_version      = "1.29"
 eks_node_instance_type   = "t3.micro"
