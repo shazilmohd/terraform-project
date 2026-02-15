@@ -12,7 +12,7 @@ private_subnet_cidrs = ["10.0.2.0/24", "10.0.4.0/24"]
 
 # EC2 Configuration - Free Tier eligible (t3.nano uses 0.25 vCPU, avoiding quota issues)
 instance_type    = "t3.nano"
-instance_count   = 1
+instance_count   = 0  # DISABLED: Temporary (conflicts with EKS node quota limit)
 root_volume_size = 20
 
 # Secrets Manager Configuration
