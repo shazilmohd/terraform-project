@@ -10,8 +10,8 @@ vpc_cidr             = "10.0.0.0/16"
 public_subnet_cidrs  = ["10.0.1.0/24", "10.0.3.0/24"]
 private_subnet_cidrs = ["10.0.2.0/24", "10.0.4.0/24"]
 
-# EC2 Configuration - Free Tier eligible (t3.micro is newer generation)
-instance_type    = "t3.micro"
+# EC2 Configuration - Free Tier eligible (t3.nano uses 0.25 vCPU, avoiding quota issues)
+instance_type    = "t3.nano"
 instance_count   = 1
 root_volume_size = 20
 
@@ -23,11 +23,11 @@ secrets_manager_secret_name = "terraform-env-vars"
 
 # EKS Configuration (Optional)
 # Set enable_eks = true to provision an EKS cluster
-# DISABLED: Waiting for AWS quota approval (On-Demand instances: Need 5, Have 1)
-enable_eks               = false
+# Now enabled: Using t3.nano (0.25 vCPU) to fit within quota limit
+enable_eks               = true
 eks_cluster_name         = "dev-eks"
 eks_cluster_version      = "1.29"
-eks_node_instance_type   = "t3.micro"
+eks_node_instance_type   = "t3.nano"
 eks_desired_size         = 1
 eks_min_size             = 1
 eks_max_size             = 1
